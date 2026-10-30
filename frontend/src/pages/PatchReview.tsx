@@ -2,7 +2,7 @@ import { AlertTriangle, CheckCircle2, RotateCcw, ShieldCheck, XCircle } from "lu
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { CodeBlock, DiffView } from "../components/CodeBlock";
-import { Button, Card, ErrorBox, fmtDate, Loading, PageHeader, PatchStatusBadge, strategyLabel, VerdictBadge, vulnLabel } from "../components/ui";
+import { Button, Card, ErrorBox, fmtDate, Loading, PageHeader, PatchStatusBadge, strategyLabel, toast, VerdictBadge, vulnLabel } from "../components/ui";
 import { useAction, useApi } from "../hooks/useApi";
 import { api } from "../services/api";
 
@@ -20,11 +20,11 @@ export function PatchReview() {
 
   const apply = async () => {
     const r = await action.run(() => api.applyPatch(p.id, approver.trim()));
-    if (r) patch.setData(r);
+    if (r) { patch.setData(r); toast.ok("Patch applied to the working copy — a backup was taken."); }
   };
   const rollback = async () => {
     const r = await action.run(() => api.rollbackPatch(p.id, p.status === "REJECTED" ? "Rejected by Proof-of-Fix" : "Manual rollback"));
-    if (r) patch.setData(r);
+    if (r) { patch.setData(r); toast.warn("Patch rolled back — original code restored."); }
   };
   const verify = async () => {
     const run = await action.run(() => api.runProofOfFix(p.id));

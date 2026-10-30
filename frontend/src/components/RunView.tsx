@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight, ShieldCheck, ShieldX } from "lucide-react";
 import { useState } from "react";
 import type { TestResult, VerificationRunDetail } from "../types/api";
-import { Card, cx, Pill, TestStatus, VerdictBadge } from "./ui";
+import { Card, cx, Pill, Seal, TestStatus, VerdictBadge } from "./ui";
 
 const PHASE_LABEL: Record<string, string> = {
   baseline: "Original code",
@@ -121,20 +121,28 @@ export function VerdictPanel({ run }: { run: VerificationRunDetail }) {
       </Card>
     );
   }
+  const sealKind = run.verdict === "VERIFIED" ? "VERIFIED" : run.verdict === "PARTIALLY_VERIFIED" ? "PARTIAL" : "REJECTED";
   return (
     <Card title="Proof-of-Fix verdict" actions={<VerdictBadge verdict={run.verdict} large />}>
-      <div className="grid gap-2 sm:grid-cols-3">
-        <Check ok={run.original_vulnerability_reproduced} label="Original exploit reproduced" />
-        <Check ok={run.exploit_blocked_after_patch} label="Exploit blocked after patch" />
-        <Check ok={run.regressions_pass_after_patch} label="Legitimate behaviour preserved" />
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+        <div className="flex shrink-0 justify-center sm:w-32" key={run.id}>
+          <Seal kind={sealKind} sub="Proof-of-Fix" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <Check ok={run.original_vulnerability_reproduced} label="Original exploit reproduced" />
+            <Check ok={run.exploit_blocked_after_patch} label="Exploit blocked after patch" />
+            <Check ok={run.regressions_pass_after_patch} label="Legitimate behaviour preserved" />
+          </div>
+          <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-slate-300">
+            {run.verdict_reasons.map((r) => <li key={r}>{r}</li>)}
+          </ul>
+          {run.error && <p className="mt-3 text-sm text-rose-300">{run.error}</p>}
+          <p className="mt-3 text-xs text-slate-500">
+            Verdict computed deterministically from executed tests ({run.duration_ms ?? "?"} ms). No AI involved.
+          </p>
+        </div>
       </div>
-      <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-slate-300">
-        {run.verdict_reasons.map((r) => <li key={r}>{r}</li>)}
-      </ul>
-      {run.error && <p className="mt-3 text-sm text-rose-300">{run.error}</p>}
-      <p className="mt-3 text-xs text-slate-500">
-        Verdict computed deterministically from executed tests ({run.duration_ms ?? "?"} ms). No AI involved.
-      </p>
     </Card>
   );
 }
@@ -202,7 +210,7 @@ export function ExploitComparison({ run }: { run: VerificationRunDetail }) {
 export function RunPhases({ run }: { run: VerificationRunDetail }) {
   const phases = ["baseline", "before_patch", "after_patch"].filter((p) => run.test_results.some((t) => t.phase === p));
   return (
-    <div className={cx("grid gap-4", phases.length > 1 && "xl:grid-cols-2")}>
+    <div className={cx("grid grid-cols-1 gap-4", phases.length > 1 && "xl:grid-cols-2")}>
       {phases.map((p) => <PhaseCard key={p} run={run} phase={p} />)}
     </div>
   );
