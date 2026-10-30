@@ -46,7 +46,7 @@ export function PatchReview() {
           PrivilegeMap catch it breaking legitimate users.
         </div>
       )}
-      <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <div className="space-y-4">
           <Card title={`Unified diff · ${p.file_path}`}><DiffView diff={p.diff} /></Card>
           <div className="grid gap-4 lg:grid-cols-2">

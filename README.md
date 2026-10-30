@@ -244,13 +244,34 @@ All endpoints are under `/api`. Interactive docs are at **<http://localhost:8000
 
 ## O. Ollama setup (optional)
 
-1. Install Ollama from <https://ollama.com/download>. It runs a local service on port 11434.
-2. Download a small model: `ollama pull llama3.2`
-3. Check that it's running: `ollama list`, or open <http://localhost:11434/api/tags>
-4. Set `OLLAMA_MODEL=llama3.2` in `.env` and restart the backend.
-5. Test it: `GET http://localhost:8000/api/health/ollama` should return `"model_installed": true`. The finding page's **Ask local AI** button will then work.
+**Team configuration:** Ollama 0.40.13 runs **locally** (no cloud, no API key) with the model **`gemma4:e2b`** (4.6 GB on disk). The reference machine is Windows, an Intel Core Ultra 9 285H, an Intel Arc 140T integrated GPU and 31.4 GB RAM, with no NVIDIA or AMD GPU.
 
-The AI only writes explanations. It is **never** used to detect vulnerabilities, set severity, write or apply patches, or decide verdicts. If Ollama is off, PatchProof shows a short message and everything else works.
+### Setup
+1. Install Ollama: <https://ollama.com/download>, or in PowerShell run `irm https://ollama.com/install.ps1 | iex`. It runs a local service on port 11434.
+2. Pull the model: `ollama pull gemma4:e2b`
+3. Check it's there: `ollama list`, or open <http://localhost:11434/api/tags>
+4. In the root `.env`, set `OLLAMA_BASE_URL=http://localhost:11434` and `OLLAMA_MODEL=gemma4:e2b`, then restart the backend.
+5. Verify: `GET http://localhost:8000/api/health/ollama` should return `"model_installed": true` and `"message": "Ollama is ready."`
+
+**To change the model:** run `ollama pull <name>`, set `OLLAMA_MODEL=<name>` in `.env` (it must match `ollama list`; `name` also matches `name:latest`), and restart the backend. Smaller models answer faster on this hardware. Larger ones will be noticeably slower without a dedicated GPU.
+
+### What was actually tested (2026-10-30, reference machine above)
+| Check | Result |
+|---|---|
+| Raw `/api/generate`, short prompt, thinking **on** (the model default) | ~9.6–10.1 s; most of the ~300 generated tokens were hidden reasoning |
+| Same prompt, thinking **off** (`"think": false`) | **1.8 s**, same quality of answer |
+| PatchProof SQLi explanation (real API → Ollama) | **11.4 s**, ~1,050 chars. Covers what is wrong, the impact and parameterised queries; no claim that anything is fixed or verified |
+| PatchProof IDOR explanation | **12.6 s**, ~1,050 chars. Covers the IDOR, the impact, and calling `can_view_document` / returning 403 server-side |
+| Backend responsiveness during inference | `/api/health` answered in ~210–260 ms while an explanation was being generated |
+| Frontend | Spinner while waiting; advisory banner; answer shown in its own "AI explanation (optional)" card next to the scanner's deterministic explanation; a missing-model error is shown verbatim with a **Try again** button |
+
+PatchProof sends `"think": false` because it only displays the final answer. If a model rejects that option, the request is retried without it. The backend waits up to `OLLAMA_TIMEOUT_SECONDS` (default 60 s). Generation speed is about 40 tokens/s on this machine.
+
+### What the AI is (and is not) allowed to do
+- It writes **advisory explanations only**, shown with a label saying so and capped at 4,000 characters.
+- It is **never** used to detect vulnerabilities, set severity, generate or apply patches, or decide verification verdicts. The verdict comes only from the executed tests in `testing/` (see [docs/testing_contract.md](docs/testing_contract.md)).
+- **AI patch suggestions are not implemented.** All patches come from the deterministic generator and still need human approval.
+- If Ollama is down, slow, missing the model, or returns empty or malformed output, the API returns `available: false` with a reason, never invented text. Scanning, patching and verification are unaffected.
 
 ## P. Demo walkthrough
 
@@ -276,7 +297,7 @@ Tip: **New fresh demo project** in the lab gives you a clean, unpatched copy at 
 - **Static analysis has blind spots.** It doesn't follow data across functions or files, ORMs, or custom middleware. *No findings does not mean secure.*
 - **Dynamic verification runs only on the bundled fixture**, locally, on isolated copies with synthetic data. Uploaded code is never executed.
 - **Exploit tests are specific payloads.** "Blocked" means these attacks are blocked, not every possible variant.
-- **AI is not authoritative.** It plays no part in detection, patching or verdicts.
+- **AI is not authoritative.** It plays no part in detection, patching or verdicts. Its explanations come from a small local model (`gemma4:e2b`) and can be wrong, so always compare them with the scanner's evidence.
 - **No authentication on the API.** It is a local demo tool, so don't expose it to a network.
 - This produces a **verification report, not a security certification.** PatchProof does not claim universal detection or automated repair.
 
@@ -287,8 +308,11 @@ Tip: **New fresh demo project** in the lab gives you a clean, unpatched copy at 
 | `/api/health` returns 503 `database_not_configured` | `.env` is missing or `DATABASE_URL` is empty. Put `.env` in the repo root (or `backend/`) and restart uvicorn. |
 | Neon connection fails or times out | Check the URL in the Neon console. Make sure it starts with `postgresql://` and the password has no unescaped special characters. Free-tier computes sleep, so the first request may take a few seconds. |
 | `alembic upgrade head` fails | Run it from `backend/` with the venv active. `relation already exists` means the tables already exist, so check `alembic current`. Never drop production tables to "fix" this. |
-| Dashboard says "AI assistant: offline" | Expected if Ollama isn't running. Start the Ollama app, or ignore it (it's optional). |
-| `/health/ollama` says the model isn't installed | Run `ollama pull <OLLAMA_MODEL>`. The name must match `ollama list` (`llama3.2` matches `llama3.2:latest`). |
+| Dashboard says "AI assistant: offline" | Expected if Ollama isn't running. Start the Ollama app (or run `ollama serve`), or ignore it (it's optional). Check with `curl http://localhost:11434/api/version`. |
+| `/health/ollama` says the model isn't installed | Run `ollama pull <OLLAMA_MODEL>`. The name must match `ollama list` exactly (`gemma4:e2b`; a bare `llama3.2` matches `llama3.2:latest`). |
+| `ollama` is "not recognized" in the terminal | Open a new terminal after installing (PATH is updated), or call `$env:LOCALAPPDATA\Programs\Ollama\ollama.exe` directly. |
+| AI explanation says "did not answer within 60s" | The first request after a restart loads the model into memory and is slower. Click **Try again**. If it keeps happening, use a smaller model, or raise `OLLAMA_TIMEOUT_SECONDS` a little in `.env`. |
+| AI answers are very slow | Check that `OLLAMA_MODEL` is the small `gemma4:e2b`, and close other GPU- or memory-heavy apps. `ollama ps` shows what is loaded. |
 | Frontend shows "Cannot reach the backend" | Is uvicorn running on port 8000? Check `VITE_API_BASE_URL` in `frontend/.env` and restart `npm run dev` after editing it. |
 | CORS error in the browser console | The page's origin must be in `FRONTEND_ORIGIN`. `http://127.0.0.1:5173` is **not** the same as `http://localhost:5173`. |
 | Port 8000 or 5173 already in use | `netstat -ano | findstr :8000`, then stop that PID, or use `--port 8001` and update `VITE_API_BASE_URL`. Vite uses `strictPort`, so change it in `vite.config.ts` if needed. |

@@ -35,6 +35,7 @@ def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
         storage.delete_project_files(project.id)
         raise ApiError(500, "fixture_unavailable", str(exc)) from exc
     db.add(project)
+    db.flush()  # insert the project before its audit row (audit_logs.project_id FK)
     record(db, "project.create", "project", project.id, project.id, fixture=body.fixture_name)
     db.commit()
     db.refresh(project)
@@ -59,6 +60,7 @@ async def upload_project(
         storage.delete_project_files(project.id)
         raise ApiError(422, "upload_rejected", str(exc)) from exc
     db.add(project)
+    db.flush()  # insert the project before its audit row (audit_logs.project_id FK)
     record(db, "project.upload", "project", project.id, project.id, filename=file.filename,
            files=project.file_count, skipped=len(skipped))
     db.commit()

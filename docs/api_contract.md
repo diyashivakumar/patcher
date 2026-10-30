@@ -36,7 +36,7 @@
 
 ### `GET /health/ollama` → 200 (always; never fails)
 ```json
-{ "available": false, "base_url": "http://localhost:11434", "model": "llama3.2",
+{ "available": false, "base_url": "http://localhost:11434", "model": "gemma4:e2b",
   "model_installed": false, "installed_models": [],
   "message": "Ollama is not reachable at http://localhost:11434 (ConnectError). PatchProof works fully without it." }
 ```

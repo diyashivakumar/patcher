@@ -16,6 +16,20 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+/** Plain-text rendering of model output: "#" lines become headings, "**" markers are dropped. Never HTML. */
+function AIText({ text }: { text: string }) {
+  return (
+    <div className="space-y-1 break-words text-sm leading-relaxed text-slate-300">
+      {text.split("\n").map((line, i) => {
+        const clean = line.replace(/\*\*/g, "");
+        const heading = clean.match(/^#{1,6}\s+(.*)/);
+        if (heading) return <h4 key={i} className="pt-2 font-semibold text-slate-100">{heading[1]}</h4>;
+        return clean.trim() ? <p key={i} className="whitespace-pre-wrap">{clean}</p> : null;
+      })}
+    </div>
+  );
+}
+
 export function FindingDetail() {
   const { findingId = "" } = useParams();
   const finding = useApi(() => api.getFinding(findingId), [findingId]);
@@ -42,7 +56,7 @@ export function FindingDetail() {
         subtitle={<><Link className="text-sky-400 hover:underline" to={`/scans/${f.scan_id}`}>← Scan results</Link> · {f.cwe} · {f.title}</>}
         actions={<SeverityBadge severity={f.severity} />}
       />
-      <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <div className="space-y-4">
           <Card title={<span className="font-mono">{f.file_path}:{f.line_start}-{f.line_end}</span>}>
             <CodeBlock code={f.code_snippet} startLine={f.snippet_start_line} highlightStart={f.line_start} highlightEnd={f.line_end} />
@@ -102,13 +116,13 @@ export function FindingDetail() {
           </Card>
 
           <Card title={<span className="inline-flex items-center gap-2"><Bot className="h-4 w-4 text-sky-400" />AI explanation (optional)</span>}>
-            {!ai && <Button variant="secondary" busy={explain.busy} onClick={async () => setAi((await explain.run(() => api.explainFinding(f.id))) ?? null)}>Ask local AI (Ollama)</Button>}
+            {!ai?.available && <Button variant="secondary" busy={explain.busy} onClick={async () => setAi((await explain.run(() => api.explainFinding(f.id))) ?? null)}>{ai ? "Try again" : "Ask local AI (Ollama)"}</Button>}
             <ErrorBox error={explain.error} />
-            {ai && !ai.available && <p className="text-sm text-slate-400">{ai.message}</p>}
+            {ai && !ai.available && <p className="mt-3 text-sm text-slate-400">{ai.message}</p>}
             {ai?.text && (
               <>
                 <p className="mb-2 rounded bg-amber-500/10 px-2 py-1 text-xs text-amber-300">{ai.advisory}</p>
-                <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">{ai.text}</div>
+                <AIText text={ai.text} />
                 <p className="mt-2 text-xs text-slate-500">Model: {ai.model}</p>
               </>
             )}

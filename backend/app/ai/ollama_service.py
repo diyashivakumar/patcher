@@ -65,14 +65,16 @@ def explain_finding(finding):
         return {**base, "message": st["message"]}
     s = get_settings()
     try:
-        resp = httpx.post(
-            f"{s.OLLAMA_BASE_URL.rstrip('/')}/api/generate",
-            json={"model": s.OLLAMA_MODEL, "prompt": _prompt(finding), "stream": False,
-                  "options": {"temperature": 0.2}},
-            timeout=s.OLLAMA_TIMEOUT_SECONDS,
-        )
+        url = f"{s.OLLAMA_BASE_URL.rstrip('/')}/api/generate"
+        payload = {"model": s.OLLAMA_MODEL, "prompt": _prompt(finding), "stream": False,
+                   "options": {"temperature": 0.2}}
+        # Thinking models (e.g. gemma4) otherwise spend most of their time on hidden reasoning we discard.
+        resp = httpx.post(url, json={**payload, "think": False}, timeout=s.OLLAMA_TIMEOUT_SECONDS)
+        if resp.status_code == 400:  # model does not accept the think option
+            resp = httpx.post(url, json=payload, timeout=s.OLLAMA_TIMEOUT_SECONDS)
         resp.raise_for_status()
-        text = resp.json().get("response")
+        data = resp.json()
+        text = data.get("response") if isinstance(data, dict) else None
     except httpx.TimeoutException:
         return {**base, "message": f"Ollama did not answer within {s.OLLAMA_TIMEOUT_SECONDS}s."}
     except (httpx.HTTPError, ValueError) as exc:

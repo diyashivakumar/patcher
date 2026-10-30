@@ -7,7 +7,7 @@ Project files go to a per-test temporary STORAGE_DIR.
 """
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -22,6 +22,11 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(get_settings(), "STORAGE_DIR", tmp_path / "storage")
     monkeypatch.setattr(get_settings(), "OLLAMA_BASE_URL", "http://127.0.0.1:9")  # nothing listens here
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+
+    @event.listens_for(engine, "connect")
+    def _enforce_fks(dbapi_conn, _record):  # SQLite ignores foreign keys unless asked; Postgres never does
+        dbapi_conn.execute("PRAGMA foreign_keys=ON")
+
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
