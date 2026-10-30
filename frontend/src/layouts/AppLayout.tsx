@@ -1,18 +1,22 @@
-import { FileText, FlaskConical, FolderGit2, LayoutDashboard, Menu, ShieldCheck, X } from "lucide-react";
+import { Bug, FileText, FlaskConical, FolderGit2, LayoutDashboard, Menu, ScanSearch, ShieldCheck, WifiOff, X } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { cx } from "../components/ui";
-import { API_BASE, USE_MOCKS } from "../services/api";
+import { useApi } from "../hooks/useApi";
+import { API_BASE, api, USE_MOCKS } from "../services/api";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/projects", label: "Projects", icon: FolderGit2 },
+  { to: "/scanner", label: "Scanner", icon: ScanSearch },
+  { to: "/findings", label: "Findings", icon: Bug },
   { to: "/replay", label: "Attack Replay Lab", icon: FlaskConical },
   { to: "/reports", label: "Reports", icon: FileText },
 ];
 
 export function AppLayout() {
   const [open, setOpen] = useState(false);
+  const health = useApi(() => api.health());
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200">
       {USE_MOCKS && (
@@ -50,6 +54,20 @@ export function AppLayout() {
             <button onClick={() => setOpen(true)} aria-label="Open menu"><Menu className="h-5 w-5" /></button>
             <span className="font-semibold">PatchProof</span>
           </div>
+          {health.error && (
+            <div className="flex flex-wrap items-center gap-3 border-b border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-200 sm:px-8">
+              <WifiOff className="h-4 w-4 shrink-0" />
+              <span className="flex-1">Backend unreachable: {health.error.message}</span>
+              <button className="rounded-md px-2 py-1 text-rose-100 hover:bg-rose-500/20" onClick={() => void health.reload()} disabled={health.loading}>
+                {health.loading ? "Checking…" : "Retry"}
+              </button>
+            </div>
+          )}
+          {health.data?.status === "degraded" && (
+            <div className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-200 sm:px-8">
+              Backend is up but its database is unavailable ({health.data.database}). Check DATABASE_URL / Neon.
+            </div>
+          )}
           <main className="mx-auto max-w-7xl px-4 py-6 sm:px-8 sm:py-8">
             <Outlet />
           </main>

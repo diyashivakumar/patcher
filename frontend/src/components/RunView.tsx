@@ -139,6 +139,66 @@ export function VerdictPanel({ run }: { run: VerificationRunDetail }) {
   );
 }
 
+function Outcome({ result }: { result?: TestResult }) {
+  if (!result) return <span className="text-slate-600">not run</span>;
+  const label = result.category === "security"
+    ? (result.exploit_succeeded ? "Exploit succeeded" : result.status === "passed" ? "Exploit blocked" : "Failed")
+    : (result.status === "passed" ? "Works" : "Broken");
+  const good = result.status === "passed";
+  return (
+    <div>
+      <span className={cx("inline-flex items-center gap-1 font-medium", good ? "text-emerald-400" : "text-rose-400")}>
+        {good ? <ShieldCheck className="h-4 w-4" /> : <ShieldX className="h-4 w-4" />}{label}
+      </span>
+      <div className="text-xs text-slate-500">{result.actual}</div>
+    </div>
+  );
+}
+
+/** Same test, before vs after the patch, row by row. Display only — the verdict comes from the runner. */
+export function ExploitComparison({ run }: { run: VerificationRunDetail }) {
+  const before = new Map(run.test_results.filter((t) => t.phase === "before_patch").map((t) => [t.test_id, t]));
+  const after = new Map(run.test_results.filter((t) => t.phase === "after_patch").map((t) => [t.test_id, t]));
+  const ids = [...new Set([...before.keys(), ...after.keys()])];
+  if (!ids.length) return null;
+  const section = (category: "security" | "regression", title: string) => {
+    const rows = ids.filter((id) => (before.get(id) ?? after.get(id))!.category === category);
+    return (
+      <>
+        <tr><td colSpan={3} className="pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">{title}</td></tr>
+        {rows.map((id) => {
+          const t = (after.get(id) ?? before.get(id))!;
+          return (
+            <tr key={id} className="border-t border-slate-800 align-top">
+              <td className="py-2.5 pr-3">
+                <div className="text-slate-200">{t.name}</div>
+                {t.privilege_map && <div className="text-xs text-slate-500">{t.privilege_map.actor} → {t.privilege_map.resource} · expected {t.privilege_map.expected}</div>}
+              </td>
+              <td className="py-2.5 pr-3"><Outcome result={before.get(id)} /></td>
+              <td className="py-2.5"><Outcome result={after.get(id)} /></td>
+            </tr>
+          );
+        })}
+      </>
+    );
+  };
+  return (
+    <Card title="Same attack, before vs after the patch">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-left text-sm">
+          <thead className="text-xs uppercase tracking-wide text-slate-500">
+            <tr><th className="w-2/5 pb-2">Test</th><th className="pb-2">Before patch (original)</th><th className="pb-2">After patch (isolated copy)</th></tr>
+          </thead>
+          <tbody>
+            {section("security", "Exploit replay — must be blocked after the patch")}
+            {section("regression", "Legitimate use — must keep working after the patch")}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
 export function RunPhases({ run }: { run: VerificationRunDetail }) {
   const phases = ["baseline", "before_patch", "after_patch"].filter((p) => run.test_results.some((t) => t.phase === p));
   return (

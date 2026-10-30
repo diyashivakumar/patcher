@@ -113,5 +113,7 @@ export const mockApi: Api = {
         created_at: r.created_at,
       })),
     ),
+  getReport: () => Promise.reject(new MockError("Report details need the real backend")),
+  downloadReport: () => Promise.reject(new MockError("Report downloads need the real backend")),
   reportUrl: () => null,
 };

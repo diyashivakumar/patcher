@@ -207,6 +207,32 @@ export interface ReportListItem {
   created_at: string;
 }
 
+/** GET /reports/{id} (JSON). Mirrors backend/app/reports/generator.py build_report(). */
+export interface Report {
+  report_id: string;
+  report_type: string;
+  generated_at: string | null;
+  project: { id: string; name: string; source_type: string; fixture_name: string | null };
+  scan: { id: string; started_at: string; files_scanned: number; findings_count: number } | null;
+  finding: {
+    id: string; title: string; vuln_type: VulnType; cwe: string; severity: Severity; severity_rationale: string;
+    confidence: string; file_path: string; line_start: number; line_end: number; code_snippet: string;
+    evidence: Record<string, unknown>; explanation: string; impact: string;
+  } | null;
+  patch: {
+    id: string; strategy: string; status: PatchStatus; rationale: string; diff: string;
+    approved_by: string | null; approved_at: string | null;
+  } | null;
+  verification: {
+    kind: "baseline" | "proof_of_fix"; scenario: VulnType; status: string; verdict: Verdict | null;
+    verdict_reasons: string[]; original_vulnerability_reproduced: boolean | null;
+    exploit_blocked_after_patch: boolean | null; regressions_pass_after_patch: boolean | null;
+    phase_summaries: Record<string, PhaseSummary>; error: string | null; duration_ms: number | null;
+    tests: Record<string, { security: unknown[]; regression: unknown[] }>;
+  };
+  known_limitations: string[];
+}
+
 export interface DashboardSummary {
   total_projects: number;
   total_scans: number;

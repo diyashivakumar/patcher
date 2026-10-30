@@ -1,15 +1,16 @@
 import { Link } from "react-router-dom";
 import { Card, Empty, ErrorBox, fmtDate, Loading, PageHeader, Pill, strategyLabel, VerdictBadge, vulnLabel } from "../components/ui";
-import { useApi } from "../hooks/useApi";
+import { useAction, useApi } from "../hooks/useApi";
 import { api } from "../services/api";
 
 export function Reports() {
   const reports = useApi(() => api.listReports());
+  const download = useAction();
   return (
     <>
       <PageHeader title="Verification reports" subtitle="One report per executed verification run. These are verification reports, not security certifications." />
       <Card>
-        <ErrorBox error={reports.error} onRetry={reports.reload} />
+        <ErrorBox error={reports.error ?? download.error} onRetry={reports.error ? reports.reload : undefined} />
         {reports.loading && <Loading />}
         {reports.data?.length === 0 && <Empty>No verification runs yet. Use the Attack Replay Lab or a patch's “Run Proof-of-Fix”.</Empty>}
         {!!reports.data?.length && (
@@ -37,6 +38,10 @@ export function Reports() {
                       <td className="space-x-3 py-2.5 text-right">
                         <Link className="text-sky-400 hover:underline" to={`/verification/${r.report_id}`}>View</Link>
                         {html && <a className="text-sky-400 hover:underline" href={html} target="_blank" rel="noreferrer">HTML</a>}
+                        {html && (["html", "json"] as const).map((fmt) => (
+                          <button key={fmt} disabled={download.busy} className="text-sky-400 hover:underline disabled:opacity-50"
+                            onClick={() => download.run(() => api.downloadReport(r.report_id, fmt))}>⤓ {fmt.toUpperCase()}</button>
+                        ))}
                       </td>
                     </tr>
                   );

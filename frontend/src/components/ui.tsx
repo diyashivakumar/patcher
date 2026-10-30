@@ -130,7 +130,7 @@ export function Empty({ children }: { children: ReactNode }) {
   return (
     <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-slate-400">
       <CircleDashed className="h-6 w-6 text-slate-600" />
-      {children}
+      <div>{children}</div>
     </div>
   );
 }

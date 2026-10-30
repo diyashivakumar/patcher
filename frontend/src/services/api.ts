@@ -11,6 +11,7 @@ import type {
   Patch,
   Project,
   ProjectDetail,
+  Report,
   ReportListItem,
   ScanSummary,
   VerificationRun,
@@ -33,19 +34,45 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  let res: Response;
+// Generous enough for an AI explanation (backend gives Ollama 60 s) or a verification run.
+const TIMEOUT_MS = 120_000;
+
+async function send(path: string, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    res = await fetch(`${API_BASE}${path}`, init);
-  } catch {
+    return await fetch(`${API_BASE}${path}`, { ...init, signal: controller.signal });
+  } catch (e) {
+    if ((e as Error).name === "AbortError") {
+      throw new ApiError(0, "timeout", `The backend did not respond within ${TIMEOUT_MS / 1000}s.`);
+    }
     throw new ApiError(0, "network_error", `Cannot reach the backend at ${API_BASE}. Is uvicorn running?`);
+  } finally {
+    clearTimeout(timer);
   }
-  const body = await res.json().catch(() => null);
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await send(path, init);
+  const body = await res.json().catch(() => undefined);
   if (!res.ok) {
     const err = body?.error;
     throw new ApiError(res.status, err?.code ?? "http_error", err?.message ?? `HTTP ${res.status}`, err?.details);
   }
+  if (body === undefined || body === null) {
+    throw new ApiError(res.status, "invalid_response", `The backend returned an empty or non-JSON response for ${path}.`);
+  }
   return body as T;
+}
+
+/** Save a report to disk via a Blob (cross-origin <a download> is ignored by browsers). */
+async function downloadReport(id: string, format: "json" | "html") {
+  const res = await send(`/reports/${id}?format=${format}`);
+  if (!res.ok) throw new ApiError(res.status, "http_error", `Report download failed (HTTP ${res.status}).`);
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement("a"), { href: url, download: `patchproof-report-${id.slice(0, 8)}.${format}` });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 const post = <T>(path: string, data: unknown) =>
@@ -87,6 +114,8 @@ const realApi = {
   },
   getRun: (id: string) => request<VerificationRunDetail>(`/verification/${id}`),
   listReports: () => request<ReportListItem[]>("/reports"),
+  getReport: (id: string) => request<Report>(`/reports/${id}`),
+  downloadReport: (id: string, format: "json" | "html"): Promise<void> => downloadReport(id, format),
   reportUrl: (id: string, format: "json" | "html"): string | null => `${API_BASE}/reports/${id}?format=${format}`,
 };
 

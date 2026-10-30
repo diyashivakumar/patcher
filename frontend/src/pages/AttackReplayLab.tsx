@@ -1,21 +1,31 @@
-import { CheckCircle2, Circle, Play, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Circle, Play, RotateCcw, ShieldCheck, Sparkles, XCircle } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { DiffView } from "../components/CodeBlock";
-import { RunPhases, VerdictPanel } from "../components/RunView";
+import { ExploitComparison, RunPhases, VerdictPanel } from "../components/RunView";
 import { Button, Card, cx, ErrorBox, PageHeader, PatchStatusBadge, strategyLabel, vulnLabel } from "../components/ui";
 import { useAction, useApi } from "../hooks/useApi";
 import { api } from "../services/api";
-import type { FindingDetail, Patch, VerificationRunDetail, VulnType } from "../types/api";
+import type { FindingDetail, Patch, Verdict, VerificationRunDetail, VulnType } from "../types/api";
 
 const select = "rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100";
 
-function Step({ n, title, done, active, children }: { n: number; title: string; done: boolean; active: boolean; children: ReactNode }) {
+// The final step's icon mirrors the backend verdict, so a FAILED run never shows a green tick.
+const VERDICT_ICON: Record<Verdict, ReactNode> = {
+  VERIFIED: <CheckCircle2 className="h-5 w-5 text-emerald-400" />,
+  PARTIALLY_VERIFIED: <AlertTriangle className="h-5 w-5 text-amber-400" />,
+  FAILED: <XCircle className="h-5 w-5 text-rose-400" />,
+};
+
+function Step({ n, stage, title, done, active, verdict, children }: {
+  n: number; stage: string; title: string; done: boolean; active: boolean; verdict?: Verdict | null; children: ReactNode;
+}) {
   return (
     <section className={cx("rounded-xl border p-5", active ? "border-sky-500/50 bg-slate-900" : "border-slate-800 bg-slate-900/40")}>
       <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
-        {done ? <CheckCircle2 className="h-5 w-5 text-emerald-400" /> : <Circle className={cx("h-5 w-5", active ? "text-sky-400" : "text-slate-600")} />}
-        Step {n} · {title}
+        {done && verdict ? VERDICT_ICON[verdict] : done ? <CheckCircle2 className="h-5 w-5 text-emerald-400" /> : <Circle className={cx("h-5 w-5", active ? "text-sky-400" : "text-slate-600")} />}
+        <span className="text-xs font-semibold uppercase tracking-wider text-sky-400/80">{stage}</span>
+        <span className="text-slate-500">·</span> Step {n} · {title}
       </h2>
       {(active || done) && children}
     </section>
@@ -119,7 +129,7 @@ export function AttackReplayLab() {
 
       {projectId && (
         <div className="space-y-4">
-          <Step n={1} title="Run the original exploit" done={!!baseline} active={step === 1}>
+          <Step n={1} stage="Before patch" title="Run the original exploit" done={!!baseline} active={step === 1}>
             {!baseline ? (
               <Button onClick={runBaseline} busy={act.busy}><Play className="h-4 w-4" />Run {vulnLabel(scenario)} exploit on original code</Button>
             ) : (
@@ -127,7 +137,7 @@ export function AttackReplayLab() {
             )}
           </Step>
 
-          <Step n={2} title="Locate the vulnerable code" done={!!finding} active={step === 2}>
+          <Step n={2} stage="Before patch" title="Locate the vulnerable code" done={!!finding} active={step === 2}>
             {!finding ? <Button onClick={locateFinding} busy={act.busy}>Scan project source</Button> : (
               <p className="text-sm text-slate-300">
                 Found at <code className="text-sky-300">{finding.file_path}:{finding.line_start}-{finding.line_end}</code> ·{" "}
@@ -136,7 +146,7 @@ export function AttackReplayLab() {
             )}
           </Step>
 
-          <Step n={3} title="Review the proposed patch" done={!!patch} active={step === 3}>
+          <Step n={3} stage="Patch" title="Review the proposed patch" done={!!patch} active={step === 3}>
             {!patch && finding ? (
               <div className="flex flex-wrap items-center gap-3">
                 <select className={select} value={strategy} onChange={(e) => setStrategy(e.target.value)}>
@@ -153,7 +163,7 @@ export function AttackReplayLab() {
             )}
           </Step>
 
-          <Step n={4} title="Approve and apply" done={applied} active={step === 4}>
+          <Step n={4} stage="Patch" title="Approve and apply" done={applied} active={step === 4}>
             {patch?.status === "PROPOSED" ? (
               <div className="flex flex-wrap items-center gap-3">
                 <input className={select} placeholder="Approver name" value={approver} onChange={(e) => setApprover(e.target.value)} />
@@ -162,15 +172,31 @@ export function AttackReplayLab() {
             ) : patch && <p className="text-sm text-slate-300">Applied by {patch.approved_by}. Original file backed up.</p>}
           </Step>
 
-          <Step n={5} title="Replay the same attack + regression tests" done={!!proof} active={step === 5}>
+          <Step n={5} stage="After patch" title="Replay the same attack + regression tests" done={!!proof} active={step === 5}>
             {!proof ? <Button onClick={replay} busy={act.busy}><ShieldCheck className="h-4 w-4" />Run Proof-of-Fix</Button> : (
               <div className="space-y-4">
+                <ExploitComparison run={proof} />
+                <details className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+                  <summary className="cursor-pointer text-sm text-slate-300">Full test evidence (requests and responses for both phases)</summary>
+                  <div className="mt-4"><RunPhases run={proof} /></div>
+                </details>
+              </div>
+            )}
+          </Step>
+
+          <Step n={6} stage="Final verdict" title="Was the fix proven?" done={!!proof} active={false} verdict={proof?.verdict}>
+            {proof && (
+              <div className="space-y-4">
                 <VerdictPanel run={proof} />
-                {proof.verdict !== "VERIFIED" && patch && ["REJECTED", "APPLIED"].includes(patch.status) && (
-                  <Button variant="danger" onClick={rollbackAndRetry} busy={act.busy}><RotateCcw className="h-4 w-4" />Roll back this patch and try another</Button>
+                {proof.verdict === "FAILED" && proof.exploit_blocked_after_patch && proof.regressions_pass_after_patch === false && (
+                  <p className="text-sm text-rose-200">The attack was blocked, but legitimate users lost access, so this patch is rejected. Blocking the exploit alone is not enough.</p>
                 )}
-                <RunPhases run={proof} />
-                <Link className="text-sm text-sky-400 hover:underline" to={`/verification/${proof.id}`}>Open full verification report →</Link>
+                <div className="flex flex-wrap items-center gap-3">
+                  {proof.verdict !== "VERIFIED" && patch && ["REJECTED", "APPLIED"].includes(patch.status) && (
+                    <Button variant="danger" onClick={rollbackAndRetry} busy={act.busy}><RotateCcw className="h-4 w-4" />Roll back this patch and try another</Button>
+                  )}
+                  <Link className="text-sm text-sky-400 hover:underline" to={`/verification/${proof.id}`}>Open verification report →</Link>
+                </div>
               </div>
             )}
           </Step>

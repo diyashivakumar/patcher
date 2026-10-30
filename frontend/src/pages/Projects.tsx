@@ -7,6 +7,8 @@ import { api } from "../services/api";
 
 const input = "w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:border-sky-500 focus:outline-none";
 
+const MAX_UPLOAD_MB = 10; // mirrors backend MAX_UPLOAD_MB default
+
 export function Projects() {
   const projects = useApi(() => api.listProjects());
   const fixtures = useApi(() => api.fixtures());
@@ -18,6 +20,18 @@ export function Projects() {
   const [upName, setUpName] = useState("");
   const [upDesc, setUpDesc] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState("");
+
+  // Fast feedback only; the backend re-validates everything (size, type, traversal, bombs, secrets).
+  const pickFile = (f: File | null) => {
+    setFile(null);
+    setFileError("");
+    if (!f) return;
+    if (!f.name.toLowerCase().endsWith(".zip")) return setFileError("Only .zip archives are accepted.");
+    if (f.size > MAX_UPLOAD_MB * 1024 * 1024) return setFileError(`The ZIP is ${(f.size / 1048576).toFixed(1)} MB; the limit is ${MAX_UPLOAD_MB} MB.`);
+    if (f.size === 0) return setFileError("The selected file is empty.");
+    setFile(f);
+  };
 
   const onCreate = async (e: FormEvent) => {
     e.preventDefault();
@@ -51,8 +65,9 @@ export function Projects() {
           <form onSubmit={onUpload} className="space-y-3">
             <input className={input} value={upName} onChange={(e) => setUpName(e.target.value)} placeholder="Project name" required />
             <input className={input} value={upDesc} onChange={(e) => setUpDesc(e.target.value)} placeholder="Description (optional)" />
-            <input type="file" accept=".zip" required onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            <input type="file" accept=".zip" required onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
               className="block w-full text-sm text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-slate-200" />
+            {fileError && <p className="text-sm text-rose-300">{fileError}</p>}
             <ErrorBox error={upload.error} />
             <Button type="submit" busy={upload.busy} disabled={!file}>Upload & create</Button>
             <p className="text-xs text-slate-500">Max 10 MB. Uploaded code is scanned and can be patched, but is never executed. Secrets like .env are discarded.</p>
