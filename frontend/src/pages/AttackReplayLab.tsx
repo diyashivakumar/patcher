@@ -9,24 +9,24 @@ import { api } from "../services/api";
 import type { FindingDetail, Patch, VerificationRunDetail, VulnType } from "../types/api";
 
 const selectCls =
-  "rounded-xl border border-slate-700/80 bg-slate-900 px-3.5 py-2.5 text-sm text-slate-100 transition focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20";
+  "rounded-lg border border-slate-700/80 bg-slate-900/90 px-3 py-2 text-xs sm:text-sm text-slate-100 transition focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500/20";
 
 const inputCls =
-  "rounded-xl border border-slate-700/80 bg-slate-900 px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 transition focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20";
+  "rounded-lg border border-slate-700/80 bg-slate-900/90 px-3 py-2 text-xs sm:text-sm text-slate-100 placeholder:text-slate-500 transition focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500/20";
 
 function StepBadge({ n, done, active }: { n: number; done: boolean; active: boolean }) {
   if (done) return (
-    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 ring-1 ring-emerald-500/40">
-      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+      <CheckCircle2 className="h-3.5 w-3.5" />
     </span>
   );
   if (active) return (
-    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-500/20 ring-1 ring-sky-500/40 text-sky-300 text-xs font-bold">
+    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-500 text-slate-950 text-xs font-bold shadow-sm">
       {n}
     </span>
   );
   return (
-    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-800 text-slate-600 text-xs font-bold">
+    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-800/80 border border-slate-700/60 text-slate-500 text-xs font-semibold">
       {n}
     </span>
   );
@@ -36,22 +36,22 @@ function Step({ n, title, done, active, children }: { n: number; title: string; 
   return (
     <section
       className={cx(
-        "rounded-2xl border p-5 transition-all duration-300",
+        "rounded-xl border p-5 transition-all duration-200",
         active
-          ? "border-sky-500/40 bg-slate-900/70 shadow-lg shadow-sky-500/5"
+          ? "border-sky-500/30 bg-[#10141d]/90 shadow-sm"
           : done
-          ? "border-emerald-500/20 bg-slate-900/40"
-          : "border-slate-800/60 bg-slate-900/20 opacity-60"
+          ? "border-emerald-500/20 bg-[#10141d]/50"
+          : "border-slate-800/60 bg-[#10141d]/30 opacity-70"
       )}
     >
       <div className="mb-4 flex items-center gap-3">
         <StepBadge n={n} done={done} active={active} />
-        <h2 className={cx("text-sm font-semibold", active ? "text-white" : done ? "text-emerald-200" : "text-slate-500")}>
+        <h2 className={cx("text-sm font-semibold tracking-tight", active ? "text-white" : done ? "text-slate-200" : "text-slate-400")}>
           {title}
         </h2>
         {done && !active && (
-          <span className="ml-auto rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/30">
-            Done
+          <span className="ml-auto rounded-md bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-400 border border-emerald-500/20">
+            Completed
           </span>
         )}
       </div>

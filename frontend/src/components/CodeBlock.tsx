@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Columns2, Rows, Copy, Check } from "lucide-react";
+import { Columns2, Rows, Copy, Check, FileCode, GitCompare } from "lucide-react";
 import { cx } from "./ui";
 
 /** Source code with real line numbers; lines in [highlightStart, highlightEnd] are marked. */
@@ -26,26 +26,23 @@ export function CodeBlock({
   };
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-800/60 bg-slate-950">
-      <div className="flex items-center justify-between border-b border-slate-800/60 px-4 py-2">
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-slate-700" />
-            <span className="h-2.5 w-2.5 rounded-full bg-slate-700" />
-            <span className="h-2.5 w-2.5 rounded-full bg-slate-700" />
-          </div>
-          {title && <span className="font-mono text-xs text-slate-500">{title}</span>}
+    <div className="overflow-hidden rounded-xl border border-slate-800/80 bg-[#0d1117] shadow-sm">
+      <div className="flex items-center justify-between border-b border-slate-800/80 bg-[#161b22] px-4 py-2">
+        <div className="flex items-center gap-2 text-slate-400">
+          <FileCode className="h-3.5 w-3.5 text-slate-500" />
+          {title && <span className="font-mono text-xs text-slate-300 font-medium">{title}</span>}
+          <span className="text-[11px] text-slate-500 font-mono">({lines.length} lines)</span>
         </div>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-300 transition"
+          className="flex items-center gap-1.5 rounded px-2 py-1 text-[11px] text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition font-medium"
           title="Copy code"
         >
-          {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      <pre className="overflow-x-auto py-3 font-mono text-[13px] leading-6">
+      <pre className="overflow-x-auto py-2.5 font-mono text-[13px] leading-6">
         {lines.map((line, i) => {
           const n = startLine + i;
           const hit =
@@ -58,19 +55,19 @@ export function CodeBlock({
               className={cx(
                 "flex transition-colors",
                 hit
-                  ? "bg-rose-500/12 border-l-2 border-rose-500"
-                  : "border-l-2 border-transparent"
+                  ? "bg-rose-500/10 border-l-2 border-rose-500 text-rose-200"
+                  : "border-l-2 border-transparent text-slate-300"
               )}
             >
               <span
                 className={cx(
                   "w-12 shrink-0 select-none pr-4 text-right text-[11px] leading-6",
-                  hit ? "text-rose-400" : "text-slate-700"
+                  hit ? "text-rose-400 font-medium" : "text-slate-600"
                 )}
               >
                 {n}
               </span>
-              <code className={cx("whitespace-pre pr-4", hit ? "text-rose-100" : "text-slate-300")}>
+              <code className="whitespace-pre pr-4 flex-1">
                 {line || " "}
               </code>
             </div>
@@ -169,28 +166,24 @@ export function DiffView({ diff, defaultMode = "unified" }: { diff: string; defa
   };
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-800/60 bg-slate-950">
+    <div className="overflow-hidden rounded-xl border border-slate-800/80 bg-[#0d1117] shadow-sm">
       {/* Header with View Mode Switcher */}
-      <div className="flex items-center justify-between border-b border-slate-800/60 px-4 py-2">
-        <div className="flex items-center gap-3">
-          <div className="flex gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-rose-500/60" />
-            <span className="h-2.5 w-2.5 rounded-full bg-amber-500/60" />
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/60" />
-          </div>
-          <span className="font-mono text-xs text-slate-500">diff</span>
+      <div className="flex items-center justify-between border-b border-slate-800/80 bg-[#161b22] px-4 py-2">
+        <div className="flex items-center gap-2">
+          <GitCompare className="h-3.5 w-3.5 text-slate-500" />
+          <span className="font-mono text-xs text-slate-300 font-medium">Patch Diff</span>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Toggle buttons */}
-          <div className="flex items-center rounded-lg bg-slate-900 p-0.5 border border-slate-800">
+          {/* Mode Switcher */}
+          <div className="flex items-center rounded-lg bg-slate-900/90 p-0.5 border border-slate-800">
             <button
               type="button"
               onClick={() => setMode("unified")}
               className={cx(
                 "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all",
                 mode === "unified"
-                  ? "bg-sky-500/20 text-sky-300 shadow-sm"
+                  ? "bg-slate-800 text-white shadow-sm border border-slate-700/60"
                   : "text-slate-400 hover:text-slate-200"
               )}
             >
@@ -203,21 +196,21 @@ export function DiffView({ diff, defaultMode = "unified" }: { diff: string; defa
               className={cx(
                 "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all",
                 mode === "split"
-                  ? "bg-sky-500/20 text-sky-300 shadow-sm"
+                  ? "bg-slate-800 text-white shadow-sm border border-slate-700/60"
                   : "text-slate-400 hover:text-slate-200"
               )}
             >
               <Columns2 className="h-3 w-3" />
-              Split (Side-by-Side)
+              Split
             </button>
           </div>
 
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-slate-500 hover:text-slate-300 transition"
+            className="flex items-center gap-1.5 rounded px-2 py-1 text-[11px] text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition font-medium"
             title="Copy diff"
           >
-            {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
             {copied ? "Copied" : "Copy"}
           </button>
         </div>
@@ -225,20 +218,20 @@ export function DiffView({ diff, defaultMode = "unified" }: { diff: string; defa
 
       {/* Unified View */}
       {mode === "unified" && (
-        <pre className="overflow-x-auto py-3 font-mono text-[13px] leading-6">
+        <pre className="overflow-x-auto py-2.5 font-mono text-[13px] leading-6">
           {lines.map((line, i) => {
             const isAdd = !line.startsWith("+++") && line.startsWith("+");
             const isDel = !line.startsWith("---") && line.startsWith("-");
             const isHdr = line.startsWith("@@");
             const isMeta = line.startsWith("+++") || line.startsWith("---");
             const style = isMeta
-              ? "text-slate-500"
+              ? "text-slate-500 font-semibold"
               : isAdd
-              ? "bg-emerald-500/10 text-emerald-300 border-l-2 border-emerald-500"
+              ? "bg-[#1b472c]/30 text-emerald-300 border-l-2 border-emerald-500"
               : isDel
-              ? "bg-rose-500/10 text-rose-300 border-l-2 border-rose-500"
+              ? "bg-[#542426]/30 text-rose-300 border-l-2 border-rose-500"
               : isHdr
-              ? "text-sky-400 bg-sky-500/5 font-semibold"
+              ? "text-sky-400 bg-sky-950/20 font-medium"
               : "text-slate-400 border-l-2 border-transparent";
             return (
               <div key={i} className={cx("whitespace-pre px-4", style)}>
@@ -252,15 +245,14 @@ export function DiffView({ diff, defaultMode = "unified" }: { diff: string; defa
       {/* Split (Side-by-Side) View */}
       {mode === "split" && (
         <div className="overflow-x-auto">
-          {/* Subheaders for Left vs Right */}
-          <div className="grid grid-cols-2 border-b border-slate-800/80 bg-slate-900/60 font-mono text-[11px] font-semibold text-slate-400">
+          <div className="grid grid-cols-2 border-b border-slate-800/80 bg-[#161b22] font-mono text-[11px] font-semibold text-slate-400">
             <div className="px-4 py-1.5 border-r border-slate-800/80 flex items-center gap-2">
-              <span className="inline-block h-2 w-2 rounded-full bg-rose-500/80" />
-              Original (Before Patch)
+              <span className="inline-block h-2 w-2 rounded-full bg-rose-500" />
+              Original (Before)
             </div>
             <div className="px-4 py-1.5 flex items-center gap-2">
-              <span className="inline-block h-2 w-2 rounded-full bg-emerald-500/80" />
-              Patched (After Patch)
+              <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+              Proposed Patch (After)
             </div>
           </div>
 
@@ -271,8 +263,8 @@ export function DiffView({ diff, defaultMode = "unified" }: { diff: string; defa
                 <div
                   className={cx(
                     "flex items-start overflow-hidden px-2",
-                    row.leftType === "del" && "bg-rose-500/15 text-rose-300",
-                    row.leftType === "empty" && "bg-slate-900/20 text-slate-600"
+                    row.leftType === "del" && "bg-[#542426]/30 text-rose-300",
+                    row.leftType === "empty" && "bg-slate-950/40 text-slate-600"
                   )}
                 >
                   <span className="w-9 shrink-0 select-none pr-3 text-right text-[11px] text-slate-600">
@@ -287,8 +279,8 @@ export function DiffView({ diff, defaultMode = "unified" }: { diff: string; defa
                 <div
                   className={cx(
                     "flex items-start overflow-hidden px-2",
-                    row.rightType === "add" && "bg-emerald-500/15 text-emerald-300",
-                    row.rightType === "empty" && "bg-slate-900/20 text-slate-600"
+                    row.rightType === "add" && "bg-[#1b472c]/30 text-emerald-300",
+                    row.rightType === "empty" && "bg-slate-950/40 text-slate-600"
                   )}
                 >
                   <span className="w-9 shrink-0 select-none pr-3 text-right text-[11px] text-slate-600">
