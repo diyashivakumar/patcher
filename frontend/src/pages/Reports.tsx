@@ -1,6 +1,6 @@
-import { ArrowRight, FileText } from "lucide-react";
+import { ArrowRight, FileText, Printer } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Card, Empty, ErrorBox, fmtDate, Loading, PageHeader, Pill, strategyLabel, VerdictBadge, vulnLabel } from "../components/ui";
+import { Button, Card, Empty, ErrorBox, fmtDate, Loading, PageHeader, Pill, strategyLabel, VerdictBadge, vulnLabel } from "../components/ui";
 import { useApi } from "../hooks/useApi";
 import { api } from "../services/api";
 
@@ -11,6 +11,11 @@ export function Reports() {
       <PageHeader
         title="Verification reports"
         subtitle="One report per executed verification run. These are verification reports, not security certifications."
+        actions={
+          <Button variant="secondary" onClick={() => window.print()} className="gap-2 no-print">
+            <Printer className="h-4 w-4" /> Print / Save as PDF
+          </Button>
+        }
       />
       <Card
         title={

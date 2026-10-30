@@ -1,8 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
   color-scheme: dark;
@@ -77,3 +77,39 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 /* table hover rows */
 tbody tr { transition: background 0.15s; }
 tbody tr:hover { background: rgba(148,163,184,0.04); }
+
+/* print styles for PDF reports */
+@media print {
+  @page {
+    margin: 1.5cm;
+    size: auto;
+  }
+  aside, nav, button, .no-print {
+    display: none !important;
+  }
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    background-image: none !important;
+  }
+  .bg-slate-950, .bg-slate-900, .bg-slate-950\/95, .bg-slate-950\/40 {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: none !important;
+  }
+  .text-white, .text-slate-100, .text-slate-200, .text-slate-300 {
+    color: #0f172a !important;
+  }
+  .text-slate-400, .text-slate-500 {
+    color: #475569 !important;
+  }
+  .border-slate-800, .border-slate-800\/60, .border-slate-700 {
+    border-color: #e2e8f0 !important;
+  }
+  pre, code {
+    background: #f8fafc !important;
+    color: #0f172a !important;
+    border-color: #e2e8f0 !important;
+  }
+}

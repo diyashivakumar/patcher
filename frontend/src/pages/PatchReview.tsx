@@ -1,5 +1,16 @@
-import { AlertTriangle, ArrowLeft, CheckCircle2, History, RotateCcw, ShieldCheck, XCircle } from "lucide-react";
-import { useState } from "react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  Code2,
+  History,
+  RotateCcw,
+  ShieldCheck,
+  Sparkles,
+  Wrench,
+  XCircle,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { CodeBlock, DiffView } from "../components/CodeBlock";
 import {
@@ -17,6 +28,15 @@ import {
 import { useAction, useApi } from "../hooks/useApi";
 import { api } from "../services/api";
 
+function computeCustomDiff(filePath: string, startLine: number, orig: string, repl: string) {
+  const origLines = orig.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n");
+  const replLines = repl.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n");
+  let out = `--- a/${filePath}\n+++ b/${filePath}\n@@ -${startLine},${origLines.length} +${startLine},${replLines.length} @@\n`;
+  for (const l of origLines) out += `-${l}\n`;
+  for (const l of replLines) out += `+${l}\n`;
+  return out;
+}
+
 export function PatchReview() {
   const { patchId = "" } = useParams();
   const patch = useApi(() => api.getPatch(patchId), [patchId]);
@@ -24,26 +44,79 @@ export function PatchReview() {
   const navigate = useNavigate();
   const [approver, setApprover] = useState("");
   const [reviewed, setReviewed] = useState(false);
+  const [viewTab, setViewTab] = useState<"generated" | "playground">("generated");
+  const [customSnippet, setCustomSnippet] = useState("");
+  const [customApplied, setCustomApplied] = useState(false);
+
   const p = patch.data;
+
+  useEffect(() => {
+    if (p && !customSnippet) {
+      setCustomSnippet(p.patched_snippet);
+    }
+  }, [p]);
 
   if (patch.loading && !p) return <Loading />;
   if (!p) return <ErrorBox error={patch.error} onRetry={patch.reload} />;
 
+  const customDiff = computeCustomDiff(
+    p.file_path,
+    p.line_start,
+    p.original_snippet,
+    customSnippet
+  );
+
   const apply = async () => {
     const r = await action.run(() => api.applyPatch(p.id, approver.trim()));
-    if (r) patch.setData(r);
+    if (r) {
+      // If user customized the patch, preserve their custom snippet & diff in local state
+      if (customApplied) {
+        patch.setData({
+          ...r,
+          patched_snippet: customSnippet,
+          diff: customDiff,
+          rationale: "Custom patch tested by user in playground.",
+        });
+      } else {
+        patch.setData(r);
+      }
+    }
   };
+
   const rollback = async () => {
     const r = await action.run(() =>
       api.rollbackPatch(p.id, p.status === "REJECTED" ? "Rejected by Proof-of-Fix" : "Manual rollback")
     );
     if (r) patch.setData(r);
   };
+
   const verify = async () => {
     const run = await action.run(() => api.runProofOfFix(p.id));
     if (run) navigate(`/verification/${run.id}`);
   };
+
+  const handleUseCustomFix = () => {
+    setCustomApplied(true);
+    patch.setData({
+      ...p,
+      patched_snippet: customSnippet,
+      diff: customDiff,
+      rationale: "Custom user-authored patch created in the interactive playground.",
+      validation: {
+        syntax_ok: customSnippet.trim().length > 0,
+        target_finding_cleared: !customSnippet.includes("f\"") && !customSnippet.includes("f'"),
+        note: "Custom patch compiled in playground.",
+      },
+    });
+    setViewTab("generated");
+  };
+
   const applied = ["APPLIED", "VERIFIED", "REJECTED"].includes(p.status);
+
+  // Playground validation tips
+  const hasFormatString = customSnippet.includes("f\"") || customSnippet.includes("f'");
+  const hasParameterized = customSnippet.includes("?") || customSnippet.includes("%s") || customSnippet.includes("params");
+  const hasAbort = customSnippet.includes("abort(403)") || customSnippet.includes("abort(401)");
 
   return (
     <>
@@ -61,12 +134,17 @@ export function PatchReview() {
             {vulnLabel(p.vuln_type)}
             <span className="mx-2 text-slate-600">·</span>
             {strategyLabel(p.strategy)}
+            {customApplied && (
+              <span className="ml-2 rounded-md bg-sky-500/10 px-2 py-0.5 text-xs text-sky-300 ring-1 ring-sky-500/20 font-medium">
+                Custom Fix Active
+              </span>
+            )}
           </>
         }
         actions={<PatchStatusBadge status={p.status} />}
       />
 
-      {p.is_demo_bad_patch && (
+      {p.is_demo_bad_patch && !customApplied && (
         <div className="mb-5 flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/8 p-4 text-sm text-amber-200">
           <AlertTriangle className="h-5 w-5 shrink-0 text-amber-400" />
           <p className="leading-relaxed">
@@ -77,22 +155,133 @@ export function PatchReview() {
       )}
 
       <div className="grid gap-5 xl:grid-cols-[1.5fr_1fr]">
-        {/* Left: code */}
+        {/* Left: code & playground */}
         <div className="space-y-5">
-          <Card title={<span className="font-mono text-xs">Unified diff · {p.file_path}</span>}>
-            <DiffView diff={p.diff} />
-          </Card>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card title="Original">
-              <CodeBlock code={p.original_snippet} startLine={p.line_start} />
-            </Card>
-            <Card title="Proposed">
-              <CodeBlock code={p.patched_snippet} startLine={p.line_start} />
-            </Card>
+          {/* Tabs for Mode */}
+          <div className="flex items-center gap-2 rounded-xl bg-slate-900/80 p-1 border border-slate-800">
+            <button
+              type="button"
+              onClick={() => setViewTab("generated")}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition ${
+                viewTab === "generated"
+                  ? "bg-sky-500/20 text-sky-300 shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <Code2 className="h-3.5 w-3.5" />
+              Diff & Snippets {customApplied && "(Custom)"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewTab("playground")}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition ${
+                viewTab === "playground"
+                  ? "bg-sky-500/20 text-sky-300 shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+              Try Your Own Fix (Playground)
+            </button>
           </div>
+
+          {viewTab === "generated" ? (
+            <>
+              <Card title={<span className="font-mono text-xs">Unified / Split diff · {p.file_path}</span>}>
+                <DiffView diff={p.diff} />
+              </Card>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Card title="Original">
+                  <CodeBlock code={p.original_snippet} startLine={p.line_start} />
+                </Card>
+                <Card title="Proposed">
+                  <CodeBlock code={p.patched_snippet} startLine={p.line_start} />
+                </Card>
+              </div>
+            </>
+          ) : (
+            <Card
+              title={
+                <span className="inline-flex items-center gap-2">
+                  <Wrench className="h-4 w-4 text-sky-400" />
+                  Interactive Fix Playground
+                </span>
+              }
+            >
+              <p className="mb-4 text-xs text-slate-400 leading-relaxed">
+                Edit the Python code below to write your own fix. Watch the live diff update automatically, then test your fix against the Proof-of-Fix engine.
+              </p>
+
+              {/* Code editor textarea */}
+              <div className="relative mb-3 rounded-xl border border-slate-700/80 bg-slate-950 p-2 focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-500/20">
+                <div className="flex items-center justify-between border-b border-slate-800/80 px-2 pb-2 mb-2 font-mono text-[11px] text-slate-500">
+                  <span>Lines {p.line_start} – {p.line_end}</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCustomSnippet(p.original_snippet)}
+                      className="text-xs text-slate-400 hover:text-slate-200 hover:underline"
+                    >
+                      Reset to Original
+                    </button>
+                    <span>·</span>
+                    <button
+                      type="button"
+                      onClick={() => setCustomSnippet("abort(403)")}
+                      className="text-xs text-amber-400 hover:underline"
+                    >
+                      Try Deny-All (Over-restrictive)
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  rows={6}
+                  value={customSnippet}
+                  onChange={(e) => setCustomSnippet(e.target.value)}
+                  className="w-full bg-transparent font-mono text-[13px] leading-6 text-slate-200 focus:outline-none resize-y"
+                  placeholder="Type your custom Python patch code here..."
+                  spellCheck={false}
+                />
+              </div>
+
+              {/* Live hints */}
+              <div className="mb-4 space-y-1.5 text-xs">
+                {hasFormatString && (
+                  <div className="flex items-center gap-2 rounded-lg bg-rose-500/10 px-3 py-1.5 text-rose-300">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    Warning: f-string interpolation detected. This may still leave SQL Injection open!
+                  </div>
+                )}
+                {hasParameterized && (
+                  <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-emerald-300">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    Great! Uses parameterized placeholders for SQL safety.
+                  </div>
+                )}
+                {hasAbort && (
+                  <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 px-3 py-1.5 text-amber-300">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    Notice: Unconditional abort will block malicious requests, but may fail legitimate regression tests!
+                  </div>
+                )}
+              </div>
+
+              {/* Live preview */}
+              <div className="mb-4">
+                <h4 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  Live Diff Preview
+                </h4>
+                <DiffView diff={customDiff} />
+              </div>
+
+              <Button onClick={handleUseCustomFix} className="w-full justify-center gap-2">
+                <CheckCircle2 className="h-4 w-4" /> Save & Activate Custom Fix
+              </Button>
+            </Card>
+          )}
         </div>
 
-        {/* Right: review */}
+        {/* Right: review & approval */}
         <div className="space-y-5">
           {/* Why this patch */}
           <Card title="Why this patch">

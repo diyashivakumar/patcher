@@ -13,7 +13,6 @@ const NAV = [
 
 export function AppLayout() {
   const [open, setOpen] = useState(false);
-  const location = useLocation();
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200">

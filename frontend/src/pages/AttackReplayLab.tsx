@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2, Circle, Play, RotateCcw, ShieldCheck, Sparkles, X } from "lucide-react";
+import { ArrowRight, CheckCircle2, Play, RotateCcw, ShieldCheck, Sparkles, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { DiffView } from "../components/CodeBlock";
