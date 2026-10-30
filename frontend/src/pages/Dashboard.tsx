@@ -1,14 +1,15 @@
 import {
   ArrowRight,
-  Bot,
-  Database,
+  ArrowUpRight,
+  CheckCheck,
+  Crosshair,
   FlaskConical,
   FolderPlus,
   ScanSearch,
   ShieldCheck,
-  Zap,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { AttackTopology, SeverityChart } from "../components/SecurityVisuals";
 import {
   Button,
   Card,
@@ -16,10 +17,7 @@ import {
   ErrorBox,
   fmtDate,
   Loading,
-  PageHeader,
   Pill,
-  Stat,
-  strategyLabel,
   VerdictBadge,
   vulnLabel,
 } from "../components/ui";
@@ -30,234 +28,375 @@ export function Dashboard() {
   const summary = useApi(() => api.dashboard());
   const projects = useApi(() => api.listProjects());
   const reports = useApi(() => api.listReports());
-  const health = useApi(() => api.health());
-  const ollama = useApi(() => api.ollamaStatus());
+  const findings = useApi(async () => {
+    const list = await api.listProjects();
+    return (
+      await Promise.all(
+        list
+          .filter((p) => p.latest_scan)
+          .map((p) => api.getScanFindings(p.latest_scan!.id)),
+      )
+    ).flat();
+  });
+  const runs = useApi(async () => {
+    const list = await api.listRuns();
+    const latest = list
+      .filter((r) => r.kind === "proof_of_fix" && r.status === "COMPLETED")
+      .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+    return latest ? api.getRun(latest.id) : null;
+  });
   const s = summary.data;
-
-  const reloadAll = () => {
-    for (const q of [summary, projects, reports, health, ollama]) void q.reload();
-  };
-
-  const latest = projects.data?.flatMap((p) => (p.latest_scan ? [p.latest_scan] : [])) ?? [];
-  const openFindings = latest.reduce((n, sc) => n + sc.findings_count, 0);
-  const openCritHigh = latest.reduce(
-    (n, sc) => n + (sc.severity_counts.CRITICAL ?? 0) + (sc.severity_counts.HIGH ?? 0),
-    0
+  const latestScans =
+    projects.data?.flatMap((p) => (p.latest_scan ? [p.latest_scan] : [])) ?? [];
+  const openFindings = latestScans.reduce((n, sc) => n + sc.findings_count, 0);
+  const criticalHigh = latestScans.reduce(
+    (n, sc) =>
+      n + (sc.severity_counts.CRITICAL ?? 0) + (sc.severity_counts.HIGH ?? 0),
+    0,
   );
-  const recentRuns = reports.data?.slice(0, 5) ?? [];
-
+  const recent = [...(reports.data ?? [])]
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+    .slice(0, 5);
+  const verdicts = s?.verification_runs_by_verdict;
+  const runCount = verdicts
+    ? Object.values(verdicts).reduce((n, v) => n + v, 0)
+    : 0;
+  const regression = runs.data?.phase_summaries.after_patch?.regression_tests;
+  const reload = () => {
+    for (const q of [summary, projects, reports, findings, runs])
+      void q.reload();
+  };
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Security Overview"
-        subtitle="Empirical proof-of-fix verification and live vulnerability tracking."
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
+      <section className="command-hero">
+        <div>
+          <div className="eyebrow">
+            <span className="hero-crosshair">✧</span> SECURITY COMMAND CENTRE
+          </div>
+          <h1>
+            Every fix.
+            <br />
+            <span>Put to the proof.</span>
+          </h1>
+          <p>
+            Your vulnerability investigations, connected.
+            <br className="hidden sm:block" /> Find the flaw. Challenge the fix.
+            Prove it with evidence.
+          </p>
+          <div className="hero-actions">
             <Link to="/projects">
-              <Button variant="secondary" className="gap-2">
-                <FolderPlus className="h-4 w-4 text-slate-400" />
+              <Button>
+                <FolderPlus size={15} />
                 New Project
               </Button>
             </Link>
             <Link to="/scanner">
-              <Button variant="secondary" className="gap-2">
-                <ScanSearch className="h-4 w-4 text-slate-400" />
-                Scan Code
+              <Button variant="secondary">
+                <ScanSearch size={15} />
+                Start Scan
               </Button>
             </Link>
-            <Link to="/replay">
-              <Button variant="primary" className="gap-2">
-                <FlaskConical className="h-4 w-4" />
-                Attack Replay Lab
-              </Button>
+            <Link className="hero-lab-link" to="/replay">
+              Attack Replay Lab <ArrowUpRight size={15} />
             </Link>
           </div>
-        }
-      />
-
-      {/* System Status Strip */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-800/80 bg-[#10141d]/60 px-4 py-2.5 text-xs text-slate-400">
-        <span className="font-semibold text-slate-300">Engine Telemetry:</span>
-        <div className="flex items-center gap-1.5">
-          <Database className="h-3.5 w-3.5 text-slate-500" />
-          <span>Storage:</span>
-          <span className="font-medium text-slate-200">
-            {health.error ? "Unreachable" : health.data?.database ?? "Checking..."}
-          </span>
         </div>
-        <span className="text-slate-700">·</span>
-        <div className="flex items-center gap-1.5">
-          <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-          <span>Proof Engine:</span>
-          <span className="font-medium text-emerald-300">Active (SQLi · IDOR)</span>
+        <div className="hero-emblem" aria-hidden="true">
+          <div className="emblem-orbit orbit-one" />
+          <div className="emblem-orbit orbit-two" />
+          <div className="emblem-orbit orbit-three" />
+          <ShieldCheck size={76} strokeWidth={0.8} />
+          <span>DEFENSE THROUGH EVIDENCE</span>
+          <i className="orbit-point point-one" />
+          <i className="orbit-point point-two" />
         </div>
-        <span className="text-slate-700">·</span>
-        <div className="flex items-center gap-1.5">
-          <Bot className="h-3.5 w-3.5 text-slate-500" />
-          <span>AI Explanations:</span>
-          <span className="font-medium text-slate-300">
-            {ollama.data?.model_installed ? `Ready (${ollama.data.model})` : "Local (Optional)"}
-          </span>
-        </div>
-      </div>
-
-      <ErrorBox error={summary.error ?? projects.error} onRetry={reloadAll} />
-      {(summary.loading || projects.loading) && !s && <Loading />}
-
+        <span className="hero-coordinate" aria-hidden="true">
+          PP / CONTROL PLANE — 001
+        </span>
+      </section>
+      <ErrorBox error={summary.error ?? projects.error} onRetry={reload} />
+      {(summary.loading || projects.loading) && !s && (
+        <Loading label="Loading investigation telemetry…" />
+      )}
       {s && projects.data && (
         <>
-          {/* Main Key Metrics */}
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Stat
-              label="Projects Tracked"
-              value={s.total_projects}
-              hint="Active test targets"
-            />
-            <Stat
-              label="Open Findings"
-              value={openFindings}
-              accent={openFindings > 0 ? "text-amber-400" : "text-emerald-400"}
-              hint={`${openCritHigh} Critical or High`}
-            />
-            <Stat
-              label="Patches Verified"
-              value={s.patches_verified}
-              accent="text-emerald-400"
-              hint={`${s.patches_generated} total generated`}
-            />
-            <Stat
-              label="Proof Verdicts"
-              value={`${s.verification_runs_by_verdict.VERIFIED} passed`}
-              accent="text-white"
-              hint={`${s.verification_runs_by_verdict.FAILED} failed checks`}
-            />
-          </div>
-
-          {/* Quick Workflow Guide Banner */}
-          <div className="rounded-xl border border-slate-800/80 bg-gradient-to-r from-sky-950/20 via-[#10141d] to-[#10141d] p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                  <Zap className="h-4 w-4 text-sky-400" />
-                  How PatchProof Works
-                </div>
-                <p className="mt-1 text-xs text-slate-400 max-w-2xl leading-relaxed">
-                  We don't just rely on static scanner alerts. When a bug is identified, our engine reproduces the exploit on an isolated throwaway sandbox, writes a targeted defensive patch, and validates that real-world attackers are blocked while legitimate users retain full access.
-                </p>
+          <section className="overview-bento" aria-label="Security overview">
+            <div className="overview-lead">
+              <div className="eyebrow">
+                <Crosshair size={13} /> ATTENTION REQUIRED
               </div>
-              <Link to="/replay" className="shrink-0">
-                <Button variant="secondary" className="w-full sm:w-auto gap-2 text-xs">
-                  Launch Attack Replay <ArrowRight className="h-3.5 w-3.5 text-sky-400" />
-                </Button>
+              <div className="overview-number">
+                {openFindings.toString().padStart(2, "0")}
+                <span>
+                  open
+                  <br />
+                  vulnerabilities
+                </span>
+              </div>
+              <Link to="/findings">
+                <span>{criticalHigh} critical / high severity</span>
+                <ArrowUpRight size={16} />
               </Link>
             </div>
-          </div>
-
-          {/* Activity Tables */}
-          <div className="grid gap-6 xl:grid-cols-2">
-            {/* Recent Scans */}
+            <div className="overview-metric">
+              <FolderPlus size={18} />
+              <strong>{s.total_projects}</strong>
+              <span>Projects</span>
+              <small>Investigation targets</small>
+            </div>
+            <div className="overview-metric">
+              <ScanSearch size={18} />
+              <strong>{s.total_scans}</strong>
+              <span>Total scans</span>
+              <small>Static code analysis</small>
+            </div>
+            <div className="overview-metric">
+              <ShieldCheck size={18} className="text-emerald-400" />
+              <strong className="text-emerald-400">{s.patches_verified}</strong>
+              <span>Verified patches</span>
+              <small>
+                {s.patches_generated} generated · {s.patches_rejected} rejected
+              </small>
+            </div>
+            <div className="overview-metric">
+              <FlaskConical size={18} className="text-brand-violet" />
+              <strong>{runCount}</strong>
+              <span>Proof-of-Fix runs</span>
+              <small>
+                <span className="text-rose-300">
+                  {verdicts?.FAILED ?? 0} failed
+                </span>{" "}
+                · {verdicts?.PARTIALLY_VERIFIED ?? 0} partial
+              </small>
+            </div>
+          </section>
+          <div className="command-dashboard-grid">
             <Card
-              title="Recent Code Scans"
-              subtitle="Python AST static vulnerability analysis"
+              className="topology-panel"
+              title={
+                <span className="flex items-center gap-2">
+                  <Crosshair size={16} className="text-sky-400" />
+                  Investigation topology
+                </span>
+              }
+              subtitle="From vulnerable code to verified defense"
               actions={
-                <Link className="text-xs text-sky-400 hover:text-sky-300 font-medium inline-flex items-center gap-1" to="/findings">
-                  All Findings <ArrowRight className="h-3 w-3" />
+                <Link to="/projects" className="panel-link">
+                  Explore projects <ArrowUpRight size={13} />
                 </Link>
               }
             >
-              {s.recent_scans.length === 0 ? (
-                <Empty>
-                  No scans run yet. <Link className="text-sky-400 hover:underline" to="/projects">Select a project</Link> to run your first scan.
-                </Empty>
+              <ErrorBox
+                error={findings.error ?? reports.error}
+                onRetry={reload}
+              />
+              {findings.loading || reports.loading ? (
+                <Loading />
               ) : (
-                <div className="divide-y divide-slate-800/60">
-                  {s.recent_scans.map((scan) => (
-                    <div key={scan.id} className="flex items-center justify-between gap-3 py-3">
-                      <div className="min-w-0">
-                        <Link
-                          to={`/scans/${scan.id}`}
-                          className="font-medium text-xs sm:text-sm text-slate-200 hover:text-sky-400 transition truncate block"
-                        >
-                          {scan.project_name}
-                        </Link>
-                        <div className="text-[11px] text-slate-500 mt-0.5">
-                          {fmtDate(scan.started_at)}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="rounded-md border border-slate-700/60 bg-slate-800/60 px-2 py-0.5 text-xs text-slate-300 font-mono">
-                          {scan.findings_count} {scan.findings_count === 1 ? "issue" : "issues"}
-                        </span>
-                        <Link
-                          to={`/scans/${scan.id}`}
-                          className="text-xs text-slate-400 hover:text-slate-200 p-1"
-                        >
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </Link>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                findings.data &&
+                reports.data && (
+                  <AttackTopology
+                    projects={projects.data}
+                    findings={findings.data}
+                    reports={reports.data}
+                  />
+                )
               )}
             </Card>
-
-            {/* Recent Verification Proofs */}
             <Card
-              title="Proof-of-Fix Results"
-              subtitle="Deterministic replay & regression test verdicts"
+              title="Threat distribution"
+              subtitle="All recorded scan findings"
+            >
+              <SeverityChart counts={s.findings_by_severity} />
+              <div className="verification-summary">
+                <div className="flex justify-between gap-2 text-xs">
+                  <span className="flex items-center gap-2">
+                    <CheckCheck size={14} />
+                    Proof verdicts
+                  </span>
+                  <b>
+                    {verdicts?.VERIFIED ?? 0} verified / {runCount}
+                  </b>
+                </div>
+                <div
+                  className="verdict-bar"
+                  role="img"
+                  aria-label={`${verdicts?.VERIFIED ?? 0} verified, ${verdicts?.FAILED ?? 0} failed, ${verdicts?.PARTIALLY_VERIFIED ?? 0} partial`}
+                >
+                  {(["VERIFIED", "PARTIALLY_VERIFIED", "FAILED"] as const).map(
+                    (v) => (
+                      <span
+                        key={v}
+                        style={{
+                          width: `${runCount ? ((verdicts?.[v] ?? 0) / runCount) * 100 : 0}%`,
+                          background:
+                            v === "VERIFIED"
+                              ? "#35E6A1"
+                              : v === "FAILED"
+                                ? "#FF5576"
+                                : "#FFC66D",
+                        }}
+                      />
+                    ),
+                  )}
+                </div>
+                <p>
+                  {runCount
+                    ? "Deterministic verdicts from executed tests."
+                    : "No Proof-of-Fix verdicts recorded yet."}
+                </p>
+              </div>
+            </Card>
+          </div>
+          <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+            <Card
+              title="Investigation activity"
+              subtitle="Most recent executed verification runs"
               actions={
-                <Link className="text-xs text-sky-400 hover:text-sky-300 font-medium inline-flex items-center gap-1" to="/reports">
-                  All Reports <ArrowRight className="h-3 w-3" />
+                <Link to="/reports" className="panel-link">
+                  All evidence <ArrowRight size={13} />
                 </Link>
               }
             >
-              <ErrorBox error={reports.error} onRetry={reloadAll} />
-              {reports.data && recentRuns.length === 0 && (
+              <ErrorBox error={reports.error} onRetry={reports.reload} />
+              {!recent.length && (
                 <Empty>
-                  No verification runs recorded yet. Test an exploit in the{" "}
-                  <Link className="text-sky-400 hover:underline" to="/replay">
-                    Attack Replay Lab
-                  </Link>.
+                  No investigations yet.{" "}
+                  <Link className="text-sky-400" to="/replay">
+                    Open the Replay Lab
+                  </Link>{" "}
+                  to begin.
                 </Empty>
               )}
-              {recentRuns.length > 0 && (
-                <div className="divide-y divide-slate-800/60">
-                  {recentRuns.map((r) => (
-                    <div key={r.report_id} className="flex items-center justify-between gap-3 py-3">
-                      <div className="min-w-0">
-                        <Link
-                          className="text-xs sm:text-sm font-medium text-slate-200 hover:text-sky-400 transition block truncate"
-                          to={`/verification/${r.report_id}`}
-                        >
-                          {vulnLabel(r.scenario)}
-                        </Link>
-                        <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
-                          <span>{fmtDate(r.created_at)}</span>
-                          <span>·</span>
-                          <span>{r.kind === "proof_of_fix" ? strategyLabel(r.patch_strategy ?? "") : "Baseline"}</span>
-                        </div>
-                      </div>
-                      <div className="shrink-0">
-                        {r.kind === "proof_of_fix" ? (
-                          <VerdictBadge verdict={r.verdict} />
-                        ) : (
-                          <Pill
-                            className={
-                              r.original_vulnerability_reproduced
-                                ? "border-rose-500/30 bg-rose-500/10 text-rose-300"
-                                : "border-slate-700 bg-slate-800/60 text-slate-400"
-                            }
-                          >
-                            {r.original_vulnerability_reproduced ? "Reproduced" : "Not Exploited"}
-                          </Pill>
-                        )}
-                      </div>
+              <div className="investigation-feed">
+                {recent.map((r) => (
+                  <Link
+                    key={r.report_id}
+                    to={`/verification/${r.report_id}`}
+                    className="investigation-entry"
+                  >
+                    <span
+                      className={`feed-marker ${r.verdict === "VERIFIED" ? "verified" : ""}`}
+                    >
+                      <FlaskConical size={16} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <strong>{vulnLabel(r.scenario)}</strong>
+                      <p>
+                        {projects.data?.find((p) => p.id === r.project_id)
+                          ?.name ?? r.project_id.slice(0, 8)}{" "}
+                        ·{" "}
+                        {r.kind === "baseline"
+                          ? "Baseline replay"
+                          : "Proof-of-Fix"}
+                      </p>
+                      <time dateTime={r.created_at}>
+                        {fmtDate(r.created_at)}
+                      </time>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <div className="text-right">
+                      <VerdictBadge verdict={r.verdict} />
+                      <span className="mt-1 block text-[10px] text-slate-500">
+                        Severity: not in report summary
+                      </span>
+                    </div>
+                    <ArrowUpRight
+                      size={15}
+                      className="shrink-0 text-slate-500"
+                    />
+                  </Link>
+                ))}
+              </div>
             </Card>
+            <div className="space-y-6">
+              <Card
+                title="Latest regression evidence"
+                subtitle="Most recent completed Proof-of-Fix run"
+              >
+                <ErrorBox error={runs.error} onRetry={runs.reload} />
+                {runs.loading ? (
+                  <Loading />
+                ) : regression && runs.data ? (
+                  <>
+                    <div className="regression-value">
+                      <strong>
+                        {regression.passed}
+                        <span> / {regression.total}</span>
+                      </strong>
+                      <span>tests passed</span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Pill className="border-rose-500/20 text-rose-300">
+                        {regression.failed} failed
+                      </Pill>
+                      <Pill className="border-amber-500/20 text-amber-300">
+                        {regression.errors} errors
+                      </Pill>
+                    </div>
+                    <Link
+                      className="panel-link mt-4"
+                      to={`/verification/${runs.data.id}`}
+                    >
+                      Inspect executed tests <ArrowRight size={13} />
+                    </Link>
+                  </>
+                ) : (
+                  !runs.error && (
+                    <p className="text-sm text-slate-400">
+                      No after-patch regression evidence recorded yet.
+                    </p>
+                  )
+                )}
+              </Card>
+              <Card title="Exposure & bypass evidence">
+                <div className="evidence-unavailable">
+                  <Crosshair size={22} />
+                  <div>
+                    <strong>Awaiting supported evidence</strong>
+                    <p>
+                      The current API does not expose variation bypasses or
+                      record-level exposure summaries. Investigate the available
+                      replay evidence.
+                    </p>
+                    <Link to="/replay" className="panel-link">
+                      Open Attack Replay Lab <ArrowUpRight size={13} />
+                    </Link>
+                  </div>
+                </div>
+              </Card>
+            </div>
           </div>
+          <Card
+            title="Latest code scans"
+            subtitle="Scanner status reported by the backend"
+          >
+            <div className="scan-feed">
+              {s.recent_scans.length === 0 && (
+                <Empty>
+                  No scans yet.{" "}
+                  <Link to="/scanner" className="text-sky-400">
+                    Start an investigation.
+                  </Link>
+                </Empty>
+              )}
+              {s.recent_scans.map((scan) => (
+                <Link key={scan.id} to={`/scans/${scan.id}`}>
+                  <ScanSearch size={18} className="text-sky-400" />
+                  <div>
+                    <strong>{scan.project_name}</strong>
+                    <small>{fmtDate(scan.started_at)}</small>
+                  </div>
+                  <Pill className="border-command-border text-slate-300">
+                    {scan.status}
+                  </Pill>
+                  <span className="text-xs text-slate-400">
+                    {scan.findings_count} findings
+                  </span>
+                  <ArrowUpRight size={15} />
+                </Link>
+              ))}
+            </div>
+          </Card>
         </>
       )}
     </div>

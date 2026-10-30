@@ -1,7 +1,10 @@
 import {
+  Activity,
+  ArrowUpRight,
+  Bot,
   Bug,
+  ChevronLeft,
   ChevronRight,
-  ExternalLink,
   FileText,
   FlaskConical,
   FolderGit2,
@@ -11,167 +14,252 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { cx } from "../components/ui";
-import { USE_MOCKS } from "../services/api";
+import { useApi } from "../hooks/useApi";
+import { api, USE_MOCKS } from "../services/api";
 
 const NAV = [
-  { to: "/", label: "Overview", icon: LayoutDashboard, end: true },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/projects", label: "Projects", icon: FolderGit2 },
-  { to: "/scanner", label: "Code Scanner", icon: ScanSearch },
+  { to: "/scanner", label: "Scanner", icon: ScanSearch },
   { to: "/findings", label: "Findings", icon: Bug },
   { to: "/replay", label: "Attack Replay Lab", icon: FlaskConical },
-  { to: "/reports", label: "Verification Reports", icon: FileText },
+  { to: "/reports", label: "Reports", icon: FileText },
 ];
 
 export function AppLayout() {
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const sidebar = useRef<HTMLElement>(null);
   const location = useLocation();
-
-  // Natural page breadcrumb title
-  const currentNav = NAV.find((n) => (n.end ? location.pathname === n.to : location.pathname.startsWith(n.to) && n.to !== "/"));
-  const pageTitle = currentNav?.label ?? "Details";
-
+  const health = useApi(() => api.health());
+  const ai = useApi(() => api.ollamaStatus());
+  useEffect(() => {
+    setOpen(false);
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [location.pathname]);
+  useEffect(() => {
+    if (!open) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    sidebar.current?.querySelector<HTMLElement>("a")?.focus();
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Tab") {
+        const items = Array.from(
+          sidebar.current?.querySelectorAll<HTMLElement>("a,button") ?? [],
+        ).filter((element) => element.getClientRects().length > 0);
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        }
+        if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("keydown", close);
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus();
+    };
+  }, [open]);
+  const current = NAV.find((n) =>
+    n.end ? location.pathname === n.to : location.pathname.startsWith(n.to),
+  );
+  const title =
+    current?.label ??
+    (location.pathname.startsWith("/patches")
+      ? "Patch review"
+      : location.pathname.startsWith("/verification")
+        ? "Verification evidence"
+        : location.pathname.startsWith("/scans")
+          ? "Scan results"
+          : "Investigation");
+  const connected = health.data?.status === "ok" && !health.error;
   return (
-    <div className="min-h-screen bg-[#0b0e14] text-slate-300">
-      {/* Mobile overlay */}
+    <div className={cx("command-app", collapsed && "nav-collapsed")}>
+      <a href="#main-content" className="skip-link">
+        Skip to content
+      </a>
       {open && (
-        <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+        <button
+          className="nav-overlay lg:hidden"
           onClick={() => setOpen(false)}
+          aria-label="Close navigation"
         />
       )}
-
-      <div className="flex">
-        {/* ── Sidebar ── */}
-        <aside
-          className={cx(
-            "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-800/80 bg-[#0d1117] transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0",
-            open ? "translate-x-0" : "-translate-x-full"
-          )}
+      <aside
+        ref={sidebar}
+        id="workspace-navigation"
+        className={cx("command-sidebar", open && "is-open")}
+      >
+        <Link
+          to="/"
+          className="command-brand"
+          aria-label="PatchProof dashboard"
         >
-          {/* Logo / Workspace */}
-          <div className="flex items-center gap-3 border-b border-slate-800/80 px-5 py-4">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
-              <ShieldCheck className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-sm font-semibold tracking-tight text-white flex items-center gap-1.5">
-                PatchProof
-                <span className="rounded bg-slate-800 px-1 py-0.2 text-[9px] font-mono text-slate-400 font-normal">v0.1</span>
-              </div>
-              <div className="text-[11px] text-slate-500 truncate">Evidence-based Patch Engine</div>
-            </div>
-            <button
-              className="ml-auto rounded-lg p-1 text-slate-500 hover:bg-slate-800 hover:text-slate-200 transition lg:hidden"
-              onClick={() => setOpen(false)}
-              aria-label="Close menu"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Navigation */}
-          <div className="flex-1 overflow-y-auto px-3 py-4">
-            <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-              Workspace
-            </div>
-            <nav className="space-y-1">
-              {NAV.map(({ to, label, icon: Icon, end }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  end={end}
-                  onClick={() => setOpen(false)}
-                  className={({ isActive }) =>
-                    cx(
-                      "flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs sm:text-sm font-medium transition-all duration-150",
-                      isActive
-                        ? "bg-slate-800/90 text-white border border-slate-700/60 shadow-sm"
-                        : "text-slate-400 hover:bg-slate-800/40 hover:text-slate-200"
-                    )
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      <Icon
-                        className={cx(
-                          "h-4 w-4 shrink-0 transition-colors",
-                          isActive ? "text-sky-400" : "text-slate-500"
-                        )}
-                      />
-                      <span className="truncate">{label}</span>
-                    </>
-                  )}
-                </NavLink>
-              ))}
-            </nav>
-          </div>
-
-          {/* Sidebar Footer: System Status */}
-          <div className="border-t border-slate-800/80 p-3.5 bg-[#0b0e14]/50">
-            <div className="flex items-center justify-between text-[11px] text-slate-500">
-              <span className="flex items-center gap-1.5 font-medium">
-                <span
-                  className={cx(
-                    "h-2 w-2 rounded-full",
-                    USE_MOCKS ? "bg-amber-400" : "bg-emerald-400"
-                  )}
-                />
-                {USE_MOCKS ? "Simulated Sandbox" : "Live Backend"}
-              </span>
-              <span className="font-mono text-[10px] text-slate-600">
-                {USE_MOCKS ? "mock" : ":8000"}
-              </span>
-            </div>
-          </div>
-        </aside>
-
-        {/* ── Content area ── */}
-        <div className="min-w-0 flex-1 flex flex-col min-h-screen">
-          {/* Top navigation bar */}
-          <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-800/80 bg-[#0b0e14]/90 px-4 sm:px-8 backdrop-blur-md">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setOpen(true)}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition lg:hidden"
-                aria-label="Open menu"
-              >
-                <Menu className="h-5 w-5" />
-              </button>
-              <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
-                <Link to="/" className="hover:text-slate-200 transition">PatchProof</Link>
-                <ChevronRight className="h-3.5 w-3.5 text-slate-600" />
-                <span className="text-slate-200 font-semibold">{pageTitle}</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {USE_MOCKS && (
-                <div className="flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-300">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                  <span className="hidden sm:inline">Offline Demo Mode</span>
-                  <span className="sm:hidden">Demo</span>
-                </div>
-              )}
-              <a
-                href="https://github.com/diyashivakumar/patcher"
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 transition"
-              >
-                <span className="hidden sm:inline">GitHub</span>
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            </div>
-          </header>
-
-          {/* Main content body */}
-          <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-8 sm:py-8 animate-fade-in">
-            <Outlet />
-          </main>
+          <span className="brand-mark">
+            <ShieldCheck size={25} strokeWidth={1.6} />
+          </span>
+          <span className="sidebar-copy">
+            <strong>
+              Patch<span>Proof</span>
+            </strong>
+            <small>SECURITY, SUBSTANTIATED.</small>
+          </span>
+        </Link>
+        <button
+          className="mobile-close lg:hidden"
+          aria-label="Close menu"
+          onClick={() => setOpen(false)}
+        >
+          <X size={18} />
+        </button>
+        <div className="sidebar-label sidebar-copy">
+          WORKSPACE <span>01</span>
         </div>
+        <nav aria-label="Main navigation">
+          {NAV.map(({ to, label, icon: Icon, end }, index) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              title={collapsed ? label : undefined}
+              className={({ isActive }) =>
+                cx("command-nav", isActive && "is-active")
+              }
+            >
+              <Icon size={18} strokeWidth={1.6} />
+              <span className="sidebar-copy">{label}</span>
+              <span className="nav-index sidebar-copy">0{index + 1}</span>
+            </NavLink>
+          ))}
+        </nav>
+        <div className="sidebar-mission sidebar-copy">
+          <span className="eyebrow">THE PATCHPROOF STANDARD</span>
+          <ShieldCheck size={28} />
+          <p>
+            Find the Flaw.
+            <br />
+            Challenge the Fix.
+            <br />
+            <b>Prove It.</b>
+          </p>
+          <Link to="/replay">
+            Open investigation <ArrowUpRight size={14} />
+          </Link>
+        </div>
+        <div className="sidebar-bottom">
+          <div className="connection-label">
+            <span
+              className={cx(
+                "status-dot",
+                connected && !USE_MOCKS && "connected",
+              )}
+            />
+            <span className="sidebar-copy">
+              {USE_MOCKS
+                ? "Isolated demo environment"
+                : health.error
+                  ? "Backend unreachable"
+                  : connected
+                    ? "Backend connected"
+                    : health.loading
+                      ? "Checking backend"
+                      : "Backend degraded"}
+            </span>
+          </div>
+          <button
+            className="collapse-nav hidden lg:flex"
+            onClick={() => setCollapsed(!collapsed)}
+            aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+          >
+            {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            <span className="sidebar-copy">Collapse workspace</span>
+          </button>
+        </div>
+      </aside>
+      <div className="command-content">
+        <header className="command-topbar">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              className="lg:hidden"
+              aria-label="Open menu"
+              aria-expanded={open}
+              aria-controls="workspace-navigation"
+              onClick={() => setOpen(true)}
+            >
+              <Menu size={21} />
+            </button>
+            <div className="breadcrumb">
+              <Link to="/">Workspace</Link>
+              <ChevronRight size={12} />
+              <span>{title}</span>
+            </div>
+          </div>
+          <div className="topbar-signals">
+            <span title={health.error?.message ?? health.data?.database}>
+              <Activity size={14} />
+              {USE_MOCKS
+                ? "Demo data"
+                : health.error
+                  ? "Disconnected"
+                  : connected
+                    ? "System connected"
+                    : health.loading
+                      ? "Connecting"
+                      : "System degraded"}
+            </span>
+            <span className="ai-signal" title={ai.data?.message}>
+              <Bot size={14} />
+              {USE_MOCKS
+                ? "AI · demo"
+                : ai.error
+                  ? "AI unavailable"
+                  : ai.data?.available && ai.data.model_installed
+                    ? "AI ready"
+                    : ai.loading
+                      ? "AI checking"
+                      : "AI offline"}
+            </span>
+            <a
+              href="https://github.com/diyashivakumar/patcher"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Open GitHub repository"
+            >
+              <ArrowUpRight size={17} />
+            </a>
+          </div>
+        </header>
+        {USE_MOCKS && (
+          <div className="demo-ribbon">
+            <span className="status-dot" /> DEMO MODE{" "}
+            <span>
+              Captured synthetic fixture data · no live security evidence
+            </span>
+          </div>
+        )}
+        <main id="main-content" tabIndex={-1} className="command-main">
+          <div key={location.pathname} className="page-enter">
+            <Outlet />
+          </div>
+        </main>
+        <footer className="command-footer">
+          <span>
+            PATCHPROOF <span className="text-slate-600">/</span> EVIDENCE OVER
+            ASSUMPTION
+          </span>
+          <span>ISOLATE. REPLAY. VERIFY.</span>
+        </footer>
       </div>
     </div>
   );
