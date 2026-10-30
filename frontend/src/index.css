@@ -2,10 +2,87 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ----------------------------------------------------------------------------
+   PatchProof design tokens. Named, intentional identity -- deep cool base, one
+   confident azure accent, and semantic status colors. Everything references
+   these via the Tailwind `brand/surface/line/verified/...` color tokens, so the
+   whole app inherits the identity from the ui.tsx primitives.
+---------------------------------------------------------------------------- */
 :root {
   color-scheme: dark;
+
+  --brand: 90 150 255;        /* azure accent              #5a96ff */
+  --brand-ink: 6 12 26;       /* text on brand surfaces             */
+
+  --ink: 8 11 19;             /* app canvas                #080b13 */
+  --surface: 16 21 33;        /* card surface              #101521 */
+  --surface-2: 22 29 45;      /* raised surface            #161d2d */
+  --line: 32 41 61;           /* hairline borders          #20293d */
+
+  --verified: 52 211 153;     /* emerald  -- VERIFIED               */
+  --breached: 251 113 133;    /* rose     -- BREACHED / FAILED      */
+  --blocked: 251 191 36;      /* amber    -- blocked / warning      */
+  --pending: 129 140 248;     /* indigo   -- pending / running      */
+
+  --text: 226 232 240;
+  --text-dim: 148 163 184;
+  --text-faint: 100 116 139;
 }
 
 body {
-  @apply bg-slate-950 font-sans text-slate-200 antialiased;
+  @apply bg-ink font-sans text-slate-200 antialiased;
+  background-image: radial-gradient(900px 500px at 100% -5%, rgb(var(--brand) / 0.06), transparent 60%);
+  background-attachment: fixed;
+}
+
+/* Focus rings: consistent, visible, keyboard-only. */
+:focus-visible {
+  outline: 2px solid rgb(var(--brand) / 0.7);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ---- Signature motif: the "proof stamp" ---- */
+@keyframes stamp-in {
+  0% { opacity: 0; transform: rotate(var(--seal-rot, -8deg)) scale(1.6); }
+  55% { opacity: 1; transform: rotate(var(--seal-rot, -8deg)) scale(0.92); }
+  100% { opacity: 1; transform: rotate(var(--seal-rot, -8deg)) scale(1); }
+}
+.seal-stamp { animation: stamp-in 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.rise-in { animation: rise-in 300ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.toast-in { animation: toast-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* ---- Skeleton shimmer ---- */
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgb(var(--surface-2));
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.05), transparent);
+  animation: shimmer 1.4s infinite;
+}
+
+/* ---- Scrollbars that match the surface ---- */
+* { scrollbar-color: rgb(var(--line)) transparent; scrollbar-width: thin; }
+*::-webkit-scrollbar { height: 10px; width: 10px; }
+*::-webkit-scrollbar-thumb { background: rgb(var(--line)); border-radius: 999px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
 }
