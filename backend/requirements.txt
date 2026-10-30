@@ -1,0 +1,14 @@
+# PatchProof backend (owner: Diya)
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+SQLAlchemy==2.0.36
+alembic==1.14.0
+psycopg[binary]==3.2.3
+python-multipart==0.0.19
+httpx==0.28.1
+
+# The verification adapter runs Dipto's test runner (testing/) as a subprocess
+# using this same interpreter by default, so its dependencies are installed too.
+-r ../testing/requirements.txt

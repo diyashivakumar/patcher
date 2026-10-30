@@ -1,0 +1,4 @@
+# Keep source line endings stable across Windows/macOS/Linux so patch snippets and diffs match.
+* text=auto eol=lf
+*.png binary
+*.ico binary

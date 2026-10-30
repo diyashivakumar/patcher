@@ -1,0 +1,2397 @@
+{
+ "_note": "Captured from a real backend run by scripts; used ONLY when VITE_USE_MOCKS=true.",
+ "fixtures": [
+  {
+   "name": "student_portal",
+   "title": "Student Document Portal (deliberately vulnerable)",
+   "description": "Flask + SQLite practice app with a SQL injection in /search and an IDOR in /documents/<id>. Synthetic data only.",
+   "verification_scenarios": [
+    "sqli",
+    "idor"
+   ]
+  }
+ ],
+ "project": {
+  "id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+  "name": "Student Portal Demo",
+  "description": "Bundled practice fixture",
+  "source_type": "fixture",
+  "fixture_name": "student_portal",
+  "file_count": 2,
+  "total_bytes": 3449,
+  "verification_supported": true,
+  "verification_scenarios": [
+   "sqli",
+   "idor"
+  ],
+  "scan_count": 1,
+  "latest_scan": {
+   "id": "cfc797bb-6c43-4089-988e-99ab2db87d2c",
+   "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+   "status": "COMPLETED",
+   "started_at": "2026-10-30T12:18:08.309377",
+   "completed_at": "2026-10-30T12:18:08.311247",
+   "files_scanned": 1,
+   "findings_count": 2,
+   "severity_counts": {
+    "CRITICAL": 1,
+    "HIGH": 1,
+    "MEDIUM": 0,
+    "LOW": 0
+   },
+   "warnings": [],
+   "error": null
+  },
+  "created_at": "2026-10-30T12:18:08.293959",
+  "updated_at": "2026-10-30T12:18:08.293959",
+  "scans": [
+   {
+    "id": "cfc797bb-6c43-4089-988e-99ab2db87d2c",
+    "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+    "status": "COMPLETED",
+    "started_at": "2026-10-30T12:18:08.309377",
+    "completed_at": "2026-10-30T12:18:08.311247",
+    "files_scanned": 1,
+    "findings_count": 2,
+    "severity_counts": {
+     "CRITICAL": 1,
+     "HIGH": 1,
+     "MEDIUM": 0,
+     "LOW": 0
+    },
+    "warnings": [],
+    "error": null
+   }
+  ],
+  "upload_skipped": []
+ },
+ "scan": {
+  "id": "cfc797bb-6c43-4089-988e-99ab2db87d2c",
+  "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+  "status": "COMPLETED",
+  "started_at": "2026-10-30T12:18:08.309377",
+  "completed_at": "2026-10-30T12:18:08.311247",
+  "files_scanned": 1,
+  "findings_count": 2,
+  "severity_counts": {
+   "CRITICAL": 1,
+   "HIGH": 1,
+   "MEDIUM": 0,
+   "LOW": 0
+  },
+  "warnings": [],
+  "error": null
+ },
+ "findings": [
+  {
+   "id": "9fe137f2-fddb-42bb-91f5-26bf0d961a6d",
+   "scan_id": "cfc797bb-6c43-4089-988e-99ab2db87d2c",
+   "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+   "vuln_type": "sqli",
+   "title": "SQL injection via string-built query",
+   "severity": "CRITICAL",
+   "severity_rationale": "HTTP request input flows directly into the SQL text with no authentication required, so an attacker can read (or alter) any data the database user can access.",
+   "confidence": "HIGH",
+   "cwe": "CWE-89",
+   "file_path": "app.py",
+   "line_start": 68,
+   "line_end": 69,
+   "code_snippet": "    def search():\n        term = request.args.get(\"q\", \"\")\n        sql = f\"SELECT id, title FROM documents WHERE is_public = 1 AND title LIKE '%{term}%'\"\n        rows = get_db().execute(sql).fetchall()\n        return jsonify([dict(r) for r in rows])",
+   "snippet_start_line": 66,
+   "evidence": {
+    "construction": "f-string",
+    "sink_line": 69,
+    "sink_code": "rows = get_db().execute(sql).fetchall()",
+    "query_line": 68,
+    "query_code": "sql = f\"SELECT id, title FROM documents WHERE is_public = 1 AND title LIKE '%{term}%'\"",
+    "function": "search",
+    "route": "/search",
+    "interpolated_inputs": [
+     {
+      "name": "term",
+      "source": "term = request.args.get(\"q\", \"\")",
+      "line": 67,
+      "user_controlled": true
+     }
+    ],
+    "user_controlled": true
+   },
+   "explanation": "In route /search, the SQL statement is built with f-string and then passed to execute(). Any quote or SQL keyword inside the interpolated value becomes part of the query itself instead of being treated as data.",
+   "impact": "An attacker can change the meaning of the query, for example turning a filtered search into 'return every row' or appending a UNION SELECT that reads other tables such as user credentials.",
+   "remediation": "Keep the SQL text constant and pass values separately as bound parameters, e.g. db.execute(\"... WHERE title LIKE ?\", (f\"%{term}%\",)). The database driver then treats the value strictly as data.",
+   "detection_method": "Python AST analysis: located a DB-API execute() call whose first argument (directly or via a local variable) is an f-string / concatenation / %-format / .format() containing SQL keywords; traced interpolated variables one assignment back to request input.",
+   "created_at": "2026-10-30T12:18:08.313060"
+  },
+  {
+   "id": "1f3f40c3-7afe-4703-bff8-0335d0b68e14",
+   "scan_id": "cfc797bb-6c43-4089-988e-99ab2db87d2c",
+   "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+   "vuln_type": "idor",
+   "title": "Broken access control (IDOR) on object lookup",
+   "severity": "HIGH",
+   "severity_rationale": "Any caller can read another user's private record by changing an identifier in the URL. No special privileges or user interaction are needed and confidentiality impact is high; rated HIGH rather than CRITICAL because it exposes records one at a time and does not allow arbitrary query execution.",
+   "confidence": "HIGH",
+   "cwe": "CWE-639",
+   "file_path": "app.py",
+   "line_start": 82,
+   "line_end": 88,
+   "code_snippet": "    @app.route(\"/documents/<int:doc_id>\")\n    def get_document(doc_id):\n        user = get_current_user()\n        doc = query_one(\"SELECT id, owner_id, title, body, is_public FROM documents WHERE id = ?\", (doc_id,))\n        if doc is None:\n            abort(404)\n        return jsonify(dict(doc))",
+   "snippet_start_line": 82,
+   "evidence": {
+    "function": "get_document",
+    "function_line": 83,
+    "route": "/documents/<int:doc_id>",
+    "route_line": 82,
+    "path_params": [
+     "doc_id"
+    ],
+    "lookup_line": 85,
+    "lookup_code": "doc = query_one(\"SELECT id, owner_id, title, body, is_public FROM documents WHERE id = ?\", (doc_id,))",
+    "resource_variable": "doc",
+    "current_user_variable": "user",
+    "current_user_line": 84,
+    "available_authz_helpers": [
+     {
+      "name": "can_view_document",
+      "args": [
+       "user",
+       "doc"
+      ],
+      "line": 45
+     }
+    ]
+   },
+   "explanation": "Route /documents/<int:doc_id> loads a record using the client-supplied 'doc_id' value (line 85) and returns it without checking whether the current user is allowed to see that record. An access-check helper (can_view_document) exists in this module but this route never calls it.",
+   "impact": "Insecure Direct Object Reference: a student can read another student's private documents simply by iterating document IDs, and anonymous callers can read private data.",
+   "remediation": "After loading the record, enforce a server-side authorisation rule (owner, assigned teacher, or public) and return 403 when it fails. Never rely on the client to only request IDs it is allowed to see.",
+   "detection_method": "Python AST analysis: found a route with a URL path parameter that is passed into a data lookup, with no access-check helper call, authorisation decorator, ownership comparison or ownership-filtered query in the route body.",
+   "created_at": "2026-10-30T12:18:08.313060"
+  }
+ ],
+ "findingDetails": {
+  "9fe137f2-fddb-42bb-91f5-26bf0d961a6d": {
+   "id": "9fe137f2-fddb-42bb-91f5-26bf0d961a6d",
+   "scan_id": "cfc797bb-6c43-4089-988e-99ab2db87d2c",
+   "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+   "vuln_type": "sqli",
+   "title": "SQL injection via string-built query",
+   "severity": "CRITICAL",
+   "severity_rationale": "HTTP request input flows directly into the SQL text with no authentication required, so an attacker can read (or alter) any data the database user can access.",
+   "confidence": "HIGH",
+   "cwe": "CWE-89",
+   "file_path": "app.py",
+   "line_start": 68,
+   "line_end": 69,
+   "code_snippet": "    def search():\n        term = request.args.get(\"q\", \"\")\n        sql = f\"SELECT id, title FROM documents WHERE is_public = 1 AND title LIKE '%{term}%'\"\n        rows = get_db().execute(sql).fetchall()\n        return jsonify([dict(r) for r in rows])",
+   "snippet_start_line": 66,
+   "evidence": {
+    "construction": "f-string",
+    "sink_line": 69,
+    "sink_code": "rows = get_db().execute(sql).fetchall()",
+    "query_line": 68,
+    "query_code": "sql = f\"SELECT id, title FROM documents WHERE is_public = 1 AND title LIKE '%{term}%'\"",
+    "function": "search",
+    "route": "/search",
+    "interpolated_inputs": [
+     {
+      "name": "term",
+      "source": "term = request.args.get(\"q\", \"\")",
+      "line": 67,
+      "user_controlled": true
+     }
+    ],
+    "user_controlled": true
+   },
+   "explanation": "In route /search, the SQL statement is built with f-string and then passed to execute(). Any quote or SQL keyword inside the interpolated value becomes part of the query itself instead of being treated as data.",
+   "impact": "An attacker can change the meaning of the query, for example turning a filtered search into 'return every row' or appending a UNION SELECT that reads other tables such as user credentials.",
+   "remediation": "Keep the SQL text constant and pass values separately as bound parameters, e.g. db.execute(\"... WHERE title LIKE ?\", (f\"%{term}%\",)). The database driver then treats the value strictly as data.",
+   "detection_method": "Python AST analysis: located a DB-API execute() call whose first argument (directly or via a local variable) is an f-string / concatenation / %-format / .format() containing SQL keywords; traced interpolated variables one assignment back to request input.",
+   "created_at": "2026-10-30T12:18:08.313060",
+   "patches": [
+    {
+     "id": "f2a919f1-3719-4900-bc87-2875e8e8db43",
+     "strategy": "parameterized_query",
+     "status": "VERIFIED",
+     "created_at": "2026-10-30T12:18:09.011540"
+    }
+   ],
+   "available_strategies": [
+    "parameterized_query"
+   ],
+   "verification_supported": true
+  },
+  "1f3f40c3-7afe-4703-bff8-0335d0b68e14": {
+   "id": "1f3f40c3-7afe-4703-bff8-0335d0b68e14",
+   "scan_id": "cfc797bb-6c43-4089-988e-99ab2db87d2c",
+   "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+   "vuln_type": "idor",
+   "title": "Broken access control (IDOR) on object lookup",
+   "severity": "HIGH",
+   "severity_rationale": "Any caller can read another user's private record by changing an identifier in the URL. No special privileges or user interaction are needed and confidentiality impact is high; rated HIGH rather than CRITICAL because it exposes records one at a time and does not allow arbitrary query execution.",
+   "confidence": "HIGH",
+   "cwe": "CWE-639",
+   "file_path": "app.py",
+   "line_start": 82,
+   "line_end": 88,
+   "code_snippet": "    @app.route(\"/documents/<int:doc_id>\")\n    def get_document(doc_id):\n        user = get_current_user()\n        doc = query_one(\"SELECT id, owner_id, title, body, is_public FROM documents WHERE id = ?\", (doc_id,))\n        if doc is None:\n            abort(404)\n        return jsonify(dict(doc))",
+   "snippet_start_line": 82,
+   "evidence": {
+    "function": "get_document",
+    "function_line": 83,
+    "route": "/documents/<int:doc_id>",
+    "route_line": 82,
+    "path_params": [
+     "doc_id"
+    ],
+    "lookup_line": 85,
+    "lookup_code": "doc = query_one(\"SELECT id, owner_id, title, body, is_public FROM documents WHERE id = ?\", (doc_id,))",
+    "resource_variable": "doc",
+    "current_user_variable": "user",
+    "current_user_line": 84,
+    "available_authz_helpers": [
+     {
+      "name": "can_view_document",
+      "args": [
+       "user",
+       "doc"
+      ],
+      "line": 45
+     }
+    ]
+   },
+   "explanation": "Route /documents/<int:doc_id> loads a record using the client-supplied 'doc_id' value (line 85) and returns it without checking whether the current user is allowed to see that record. An access-check helper (can_view_document) exists in this module but this route never calls it.",
+   "impact": "Insecure Direct Object Reference: a student can read another student's private documents simply by iterating document IDs, and anonymous callers can read private data.",
+   "remediation": "After loading the record, enforce a server-side authorisation rule (owner, assigned teacher, or public) and return 403 when it fails. Never rely on the client to only request IDs it is allowed to see.",
+   "detection_method": "Python AST analysis: found a route with a URL path parameter that is passed into a data lookup, with no access-check helper call, authorisation decorator, ownership comparison or ownership-filtered query in the route body.",
+   "created_at": "2026-10-30T12:18:08.313060",
+   "patches": [
+    {
+     "id": "a05b6f2e-a4b5-4d52-98fc-c45253501cb8",
+     "strategy": "ownership_check",
+     "status": "VERIFIED",
+     "created_at": "2026-10-30T12:18:09.803765"
+    },
+    {
+     "id": "fb31f1a1-dc59-4ac2-85ac-35e835c94745",
+     "strategy": "deny_all_demo",
+     "status": "ROLLED_BACK",
+     "created_at": "2026-10-30T12:18:09.032445"
+    }
+   ],
+   "available_strategies": [
+    "ownership_check",
+    "deny_all_demo"
+   ],
+   "verification_supported": true
+  }
+ },
+ "baseline": {
+  "sqli": {
+   "id": "353f0ce4-8f96-4825-97cd-f6810465e784",
+   "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+   "patch_id": null,
+   "kind": "baseline",
+   "scenario": "sqli",
+   "status": "COMPLETED",
+   "verdict": null,
+   "verdict_reasons": [
+    "Original vulnerability reproduced: exploit succeeded against the unpatched code"
+   ],
+   "original_vulnerability_reproduced": true,
+   "exploit_blocked_after_patch": null,
+   "regressions_pass_after_patch": null,
+   "phase_summaries": {
+    "baseline": {
+     "exploit_reproduced": true,
+     "load_error": null,
+     "duration_ms": 162,
+     "security_tests": {
+      "total": 2,
+      "passed": 0,
+      "failed": 2,
+      "errors": 0
+     },
+     "regression_tests": {
+      "total": 3,
+      "passed": 2,
+      "failed": 1,
+      "errors": 0
+     }
+    }
+   },
+   "error": null,
+   "started_at": "2026-10-30T12:18:08.350155",
+   "completed_at": "2026-10-30T12:18:08.685066",
+   "duration_ms": 327,
+   "created_at": "2026-10-30T12:18:08.686221",
+   "patch_status": null,
+   "test_results": [
+    {
+     "phase": "baseline",
+     "category": "security",
+     "test_id": "sqli.tautology_leaks_private_docs",
+     "name": "Tautology injection ( ' OR 1=1 -- )",
+     "description": "Tries to turn the WHERE clause into 'always true' so private documents are returned.",
+     "status": "failed",
+     "expected": "No private documents returned; HTTP 200 or 400",
+     "actual": "Injection succeeded: private documents leaked ['Alice Private Diary', 'Bob Private Grades']",
+     "exploit_succeeded": true,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/search",
+       "params": {
+        "q": "' OR 1=1 --"
+       },
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "[{\"id\":1,\"title\":\"Alice Private Diary\"},{\"id\":2,\"title\":\"Bob Private Grades\"},{\"id\":3,\"title\":\"Algebra Notes\"},{\"id\":4,\"title\":\"Chemistry Lab Safety\"},{\"id\":5,\"title\":\"O'Brien Reading List\"}]\n"
+      }
+     },
+     "privilege_map": null
+    },
+    {
+     "phase": "baseline",
+     "category": "security",
+     "test_id": "sqli.union_leaks_user_tokens",
+     "name": "UNION injection reading the users table",
+     "description": "Tries to append a UNION SELECT that returns synthetic user API tokens.",
+     "status": "failed",
+     "expected": "No user tokens returned; HTTP 200 or 400",
+     "actual": "Injection succeeded: synthetic user API tokens appeared in search results",
+     "exploit_succeeded": true,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/search",
+       "params": {
+        "q": "' UNION SELECT id, api_token FROM users --"
+       },
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "[{\"id\":1,\"title\":\"tok-alice-SYNTHETIC\"},{\"id\":2,\"title\":\"tok-bob-SYNTHETIC\"},{\"id\":3,\"title\":\"Algebra Notes\"},{\"id\":3,\"title\":\"tok-rivera-SYNTHETIC\"},{\"id\":4,\"title\":\"Chemistry Lab Safety\"},{\"id\":4,\"title\":\"tok-okafor-SYNTHETIC\"},{\"id\":5,\"title\":\"O'Brien Reading List\"}]\n"
+      }
+     },
+     "privilege_map": null
+    },
+    {
+     "phase": "baseline",
+     "category": "regression",
+     "test_id": "sqli.search_finds_public_doc",
+     "name": "Normal search finds a public document",
+     "description": "Searching 'Algebra' must return the public 'Algebra Notes' document.",
+     "status": "passed",
+     "expected": "HTTP 200 and results include 'Algebra Notes'",
+     "actual": "HTTP 200, titles=['Algebra Notes']",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/search",
+       "params": {
+        "q": "Algebra"
+       },
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "[{\"id\":3,\"title\":\"Algebra Notes\"}]\n"
+      }
+     },
+     "privilege_map": null
+    },
+    {
+     "phase": "baseline",
+     "category": "regression",
+     "test_id": "sqli.empty_search_lists_public_docs",
+     "name": "Empty search lists every public document",
+     "description": "An empty query must list exactly the public documents and nothing private.",
+     "status": "passed",
+     "expected": "HTTP 200 and titles == ['Algebra Notes', 'Chemistry Lab Safety', \"O'Brien Reading List\"]",
+     "actual": "HTTP 200, titles=['Algebra Notes', 'Chemistry Lab Safety', \"O'Brien Reading List\"]",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/search",
+       "params": {
+        "q": ""
+       },
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "[{\"id\":3,\"title\":\"Algebra Notes\"},{\"id\":4,\"title\":\"Chemistry Lab Safety\"},{\"id\":5,\"title\":\"O'Brien Reading List\"}]\n"
+      }
+     },
+     "privilege_map": null
+    },
+    {
+     "phase": "baseline",
+     "category": "regression",
+     "test_id": "sqli.search_with_apostrophe",
+     "name": "Search containing an apostrophe works",
+     "description": "Legitimate input with a quote (O'Brien) must be searchable, not crash the query.",
+     "status": "failed",
+     "expected": "HTTP 200 and results include \"O'Brien Reading List\"",
+     "actual": "HTTP 500, no result list",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/search",
+       "params": {
+        "q": "O'Brien"
+       },
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 500,
+       "body_excerpt": "<!doctype html>\n<html lang=en>\n<title>500 Internal Server Error</title>\n<h1>Internal Server Error</h1>\n<p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.</p>\n"
+      }
+     },
+     "privilege_map": null
+    }
+   ]
+  },
+  "idor": {
+   "id": "17743c5f-5084-4280-99f0-f8b4adae1dbe",
+   "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+   "patch_id": null,
+   "kind": "baseline",
+   "scenario": "idor",
+   "status": "COMPLETED",
+   "verdict": null,
+   "verdict_reasons": [
+    "Original vulnerability reproduced: exploit succeeded against the unpatched code"
+   ],
+   "original_vulnerability_reproduced": true,
+   "exploit_blocked_after_patch": null,
+   "regressions_pass_after_patch": null,
+   "phase_summaries": {
+    "baseline": {
+     "exploit_reproduced": true,
+     "load_error": null,
+     "duration_ms": 150,
+     "security_tests": {
+      "total": 4,
+      "passed": 0,
+      "failed": 4,
+      "errors": 0
+     },
+     "regression_tests": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0,
+      "errors": 0
+     }
+    }
+   },
+   "error": null,
+   "started_at": "2026-10-30T12:18:08.697375",
+   "completed_at": "2026-10-30T12:18:09.002280",
+   "duration_ms": 307,
+   "created_at": "2026-10-30T12:18:09.002280",
+   "patch_status": null,
+   "test_results": [
+    {
+     "phase": "baseline",
+     "category": "security",
+     "test_id": "idor.alice_reads_bob_doc",
+     "name": "alice -> document 2: expect DENY",
+     "description": "Students must not read another student's private document.",
+     "status": "failed",
+     "expected": "DENY",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": true,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/2",
+       "params": {},
+       "actor": "alice"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-BOB: term grades draft\",\"id\":2,\"is_public\":0,\"owner_id\":2,\"title\":\"Bob Private Grades\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "alice_reads_bob_doc",
+      "actor": "alice",
+      "resource": "document:2",
+      "expected": "DENY",
+      "observed": "ALLOW",
+      "reason": "Students must not read another student's private document."
+     }
+    },
+    {
+     "phase": "baseline",
+     "category": "security",
+     "test_id": "idor.bob_reads_alice_doc",
+     "name": "bob -> document 1: expect DENY",
+     "description": "Students must not read another student's private document.",
+     "status": "failed",
+     "expected": "DENY",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": true,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "bob"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-ALICE: notes for my eyes only\",\"id\":1,\"is_public\":0,\"owner_id\":1,\"title\":\"Alice Private Diary\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "bob_reads_alice_doc",
+      "actor": "bob",
+      "resource": "document:1",
+      "expected": "DENY",
+      "observed": "ALLOW",
+      "reason": "Students must not read another student's private document."
+     }
+    },
+    {
+     "phase": "baseline",
+     "category": "security",
+     "test_id": "idor.teacher_reads_unassigned_student_doc",
+     "name": "mr_okafor -> document 2: expect DENY",
+     "description": "Teachers must not read documents of students not assigned to them.",
+     "status": "failed",
+     "expected": "DENY",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": true,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/2",
+       "params": {},
+       "actor": "mr_okafor"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-BOB: term grades draft\",\"id\":2,\"is_public\":0,\"owner_id\":2,\"title\":\"Bob Private Grades\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "teacher_reads_unassigned_student_doc",
+      "actor": "mr_okafor",
+      "resource": "document:2",
+      "expected": "DENY",
+      "observed": "ALLOW",
+      "reason": "Teachers must not read documents of students not assigned to them."
+     }
+    },
+    {
+     "phase": "baseline",
+     "category": "security",
+     "test_id": "idor.anonymous_reads_private_doc",
+     "name": "anonymous -> document 1: expect DENY",
+     "description": "Anonymous callers must not read private documents.",
+     "status": "failed",
+     "expected": "DENY",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": true,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-ALICE: notes for my eyes only\",\"id\":1,\"is_public\":0,\"owner_id\":1,\"title\":\"Alice Private Diary\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "anonymous_reads_private_doc",
+      "actor": "anonymous",
+      "resource": "document:1",
+      "expected": "DENY",
+      "observed": "ALLOW",
+      "reason": "Anonymous callers must not read private documents."
+     }
+    },
+    {
+     "phase": "baseline",
+     "category": "regression",
+     "test_id": "idor.alice_reads_own_doc",
+     "name": "alice -> document 1: expect ALLOW",
+     "description": "Students may read their own documents.",
+     "status": "passed",
+     "expected": "ALLOW",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "alice"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-ALICE: notes for my eyes only\",\"id\":1,\"is_public\":0,\"owner_id\":1,\"title\":\"Alice Private Diary\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "alice_reads_own_doc",
+      "actor": "alice",
+      "resource": "document:1",
+      "expected": "ALLOW",
+      "observed": "ALLOW",
+      "reason": "Students may read their own documents."
+     }
+    },
+    {
+     "phase": "baseline",
+     "category": "regression",
+     "test_id": "idor.teacher_reads_assigned_student_doc",
+     "name": "ms_rivera -> document 1: expect ALLOW",
+     "description": "Teachers may read documents of students assigned to them.",
+     "status": "passed",
+     "expected": "ALLOW",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "ms_rivera"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-ALICE: notes for my eyes only\",\"id\":1,\"is_public\":0,\"owner_id\":1,\"title\":\"Alice Private Diary\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "teacher_reads_assigned_student_doc",
+      "actor": "ms_rivera",
+      "resource": "document:1",
+      "expected": "ALLOW",
+      "observed": "ALLOW",
+      "reason": "Teachers may read documents of students assigned to them."
+     }
+    },
+    {
+     "phase": "baseline",
+     "category": "regression",
+     "test_id": "idor.anonymous_reads_public_doc",
+     "name": "anonymous -> document 3: expect ALLOW",
+     "description": "Anyone may read public documents.",
+     "status": "passed",
+     "expected": "ALLOW",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/3",
+       "params": {},
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"Public algebra notes for all students\",\"id\":3,\"is_public\":1,\"owner_id\":3,\"title\":\"Algebra Notes\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "anonymous_reads_public_doc",
+      "actor": "anonymous",
+      "resource": "document:3",
+      "expected": "ALLOW",
+      "observed": "ALLOW",
+      "reason": "Anyone may read public documents."
+     }
+    },
+    {
+     "phase": "baseline",
+     "category": "regression",
+     "test_id": "idor.owner_lists_own_documents",
+     "name": "alice lists her own documents",
+     "description": "GET /documents/mine must still return exactly alice's documents.",
+     "status": "passed",
+     "expected": "HTTP 200 and ids == [1]",
+     "actual": "HTTP 200, ids=[1]",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/mine",
+       "params": {},
+       "actor": "alice"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "[{\"id\":1,\"is_public\":0,\"title\":\"Alice Private Diary\"}]\n"
+      }
+     },
+     "privilege_map": null
+    }
+   ]
+  }
+ },
+ "proposedPatches": {
+  "sqli:parameterized_query": {
+   "id": "f2a919f1-3719-4900-bc87-2875e8e8db43",
+   "finding_id": "9fe137f2-fddb-42bb-91f5-26bf0d961a6d",
+   "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+   "vuln_type": "sqli",
+   "strategy": "parameterized_query",
+   "is_demo_bad_patch": false,
+   "status": "PROPOSED",
+   "file_path": "app.py",
+   "line_start": 68,
+   "line_end": 69,
+   "original_snippet": "        sql = f\"SELECT id, title FROM documents WHERE is_public = 1 AND title LIKE '%{term}%'\"\n        rows = get_db().execute(sql).fetchall()\n",
+   "patched_snippet": "        sql = \"SELECT id, title FROM documents WHERE is_public = 1 AND title LIKE ?\"\n        rows = get_db().execute(sql, (f\"%{term}%\",)).fetchall()\n",
+   "diff": "--- a/app.py\n+++ b/app.py\n@@ -65,8 +65,8 @@\n     @app.route(\"/search\")\n     def search():\n         term = request.args.get(\"q\", \"\")\n-        sql = f\"SELECT id, title FROM documents WHERE is_public = 1 AND title LIKE '%{term}%'\"\n-        rows = get_db().execute(sql).fetchall()\n+        sql = \"SELECT id, title FROM documents WHERE is_public = 1 AND title LIKE ?\"\n+        rows = get_db().execute(sql, (f\"%{term}%\",)).fetchall()\n         return jsonify([dict(r) for r in rows])\n \n     @app.route(\"/documents/mine\")\n",
+   "rationale": "The SQL text is now a constant (\"SELECT id, title FROM documents WHERE is_public = 1 AND title LIKE ?\") and the 1 user-influenced value(s) are passed separately as bound parameters (f\"%{term}%\",). The database driver sends them as data, so quotes or SQL keywords in the input can no longer change the query. Wildcards that were part of the original string literal (e.g. % for LIKE) are moved into the parameter so search behaviour is unchanged.",
+   "validation": {
+    "syntax_ok": true,
+    "target_finding_cleared": true,
+    "remaining_findings_in_file": 1,
+    "note": "Static re-scan of the patched file. This is not verification; run the Proof-of-Fix engine."
+   },
+   "approved_by": null,
+   "approved_at": null,
+   "applied_at": null,
+   "rolled_back_at": null,
+   "created_at": "2026-10-30T12:18:09.011540",
+   "verification_runs": []
+  },
+  "idor:deny_all_demo": {
+   "id": "fb31f1a1-dc59-4ac2-85ac-35e835c94745",
+   "finding_id": "1f3f40c3-7afe-4703-bff8-0335d0b68e14",
+   "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+   "vuln_type": "idor",
+   "strategy": "deny_all_demo",
+   "is_demo_bad_patch": true,
+   "status": "PROPOSED",
+   "file_path": "app.py",
+   "line_start": 83,
+   "line_end": 87,
+   "original_snippet": "    def get_document(doc_id):\n        user = get_current_user()\n        doc = query_one(\"SELECT id, owner_id, title, body, is_public FROM documents WHERE id = ?\", (doc_id,))\n        if doc is None:\n            abort(404)\n",
+   "patched_snippet": "    def get_document(doc_id):\n        user = get_current_user()\n        doc = query_one(\"SELECT id, owner_id, title, body, is_public FROM documents WHERE id = ?\", (doc_id,))\n        if doc is None:\n            abort(404)\n        abort(403)  # DEMO ONLY: deliberately over-restrictive \"fix\" - denies everyone\n",
+   "diff": "--- a/app.py\n+++ b/app.py\n@@ -85,6 +85,7 @@\n         doc = query_one(\"SELECT id, owner_id, title, body, is_public FROM documents WHERE id = ?\", (doc_id,))\n         if doc is None:\n             abort(404)\n+        abort(403)  # DEMO ONLY: deliberately over-restrictive \"fix\" - denies everyone\n         return jsonify(dict(doc))\n \n     @app.route(\"/documents/<int:doc_id>/summary\")\n",
+   "rationale": "DEMONSTRATION PATCH. This blocks the IDOR by refusing every request to this route, including the document's owner and authorised teachers. It is intentionally wrong: it closes the hole but breaks legitimate access. The Proof-of-Fix engine's PrivilegeMap regression tests should reject it.",
+   "validation": {
+    "syntax_ok": true,
+    "target_finding_cleared": true,
+    "remaining_findings_in_file": 1,
+    "note": "Static re-scan of the patched file. This is not verification; run the Proof-of-Fix engine."
+   },
+   "approved_by": null,
+   "approved_at": null,
+   "applied_at": null,
+   "rolled_back_at": null,
+   "created_at": "2026-10-30T12:18:09.032445",
+   "verification_runs": []
+  },
+  "idor:ownership_check": {
+   "id": "a05b6f2e-a4b5-4d52-98fc-c45253501cb8",
+   "finding_id": "1f3f40c3-7afe-4703-bff8-0335d0b68e14",
+   "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+   "vuln_type": "idor",
+   "strategy": "ownership_check",
+   "is_demo_bad_patch": false,
+   "status": "PROPOSED",
+   "file_path": "app.py",
+   "line_start": 83,
+   "line_end": 87,
+   "original_snippet": "    def get_document(doc_id):\n        user = get_current_user()\n        doc = query_one(\"SELECT id, owner_id, title, body, is_public FROM documents WHERE id = ?\", (doc_id,))\n        if doc is None:\n            abort(404)\n",
+   "patched_snippet": "    def get_document(doc_id):\n        user = get_current_user()\n        doc = query_one(\"SELECT id, owner_id, title, body, is_public FROM documents WHERE id = ?\", (doc_id,))\n        if doc is None:\n            abort(404)\n        if not can_view_document(user, doc):\n            abort(403)\n",
+   "diff": "--- a/app.py\n+++ b/app.py\n@@ -85,6 +85,8 @@\n         doc = query_one(\"SELECT id, owner_id, title, body, is_public FROM documents WHERE id = ?\", (doc_id,))\n         if doc is None:\n             abort(404)\n+        if not can_view_document(user, doc):\n+            abort(403)\n         return jsonify(dict(doc))\n \n     @app.route(\"/documents/<int:doc_id>/summary\")\n",
+   "rationale": "After loading 'doc' (and after the existing not-found check), the route now calls the module's existing authorisation helper can_view_document(user, doc) and returns HTTP 403 when it fails. This reuses the authorisation rule already defined in the module instead of inventing a new one, so users the rule allows keep access while everyone else is denied. Whether that holds in practice is checked by the PrivilegeMap tests, not assumed.",
+   "validation": {
+    "syntax_ok": true,
+    "target_finding_cleared": true,
+    "remaining_findings_in_file": 0,
+    "note": "Static re-scan of the patched file. This is not verification; run the Proof-of-Fix engine."
+   },
+   "approved_by": null,
+   "approved_at": null,
+   "applied_at": null,
+   "rolled_back_at": null,
+   "created_at": "2026-10-30T12:18:09.803765",
+   "verification_runs": []
+  }
+ },
+ "appliedPatches": {
+  "sqli:parameterized_query": {
+   "id": "f2a919f1-3719-4900-bc87-2875e8e8db43",
+   "finding_id": "9fe137f2-fddb-42bb-91f5-26bf0d961a6d",
+   "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+   "vuln_type": "sqli",
+   "strategy": "parameterized_query",
+   "is_demo_bad_patch": false,
+   "status": "APPLIED",
+   "file_path": "app.py",
+   "line_start": 68,
+   "line_end": 69,
+   "original_snippet": "        sql = f\"SELECT id, title FROM documents WHERE is_public = 1 AND title LIKE '%{term}%'\"\n        rows = get_db().execute(sql).fetchall()\n",
+   "patched_snippet": "        sql = \"SELECT id, title FROM documents WHERE is_public = 1 AND title LIKE ?\"\n        rows = get_db().execute(sql, (f\"%{term}%\",)).fetchall()\n",
+   "diff": "--- a/app.py\n+++ b/app.py\n@@ -65,8 +65,8 @@\n     @app.route(\"/search\")\n     def search():\n         term = request.args.get(\"q\", \"\")\n-        sql = f\"SELECT id, title FROM documents WHERE is_public = 1 AND title LIKE '%{term}%'\"\n-        rows = get_db().execute(sql).fetchall()\n+        sql = \"SELECT id, title FROM documents WHERE is_public = 1 AND title LIKE ?\"\n+        rows = get_db().execute(sql, (f\"%{term}%\",)).fetchall()\n         return jsonify([dict(r) for r in rows])\n \n     @app.route(\"/documents/mine\")\n",
+   "rationale": "The SQL text is now a constant (\"SELECT id, title FROM documents WHERE is_public = 1 AND title LIKE ?\") and the 1 user-influenced value(s) are passed separately as bound parameters (f\"%{term}%\",). The database driver sends them as data, so quotes or SQL keywords in the input can no longer change the query. Wildcards that were part of the original string literal (e.g. % for LIKE) are moved into the parameter so search behaviour is unchanged.",
+   "validation": {
+    "syntax_ok": true,
+    "target_finding_cleared": true,
+    "remaining_findings_in_file": 1,
+    "note": "Static re-scan of the patched file. This is not verification; run the Proof-of-Fix engine."
+   },
+   "approved_by": "demo-user",
+   "approved_at": "2026-10-30T12:18:09.035808",
+   "applied_at": "2026-10-30T12:18:09.035808",
+   "rolled_back_at": null,
+   "created_at": "2026-10-30T12:18:09.011540",
+   "verification_runs": []
+  },
+  "idor:deny_all_demo": {
+   "id": "fb31f1a1-dc59-4ac2-85ac-35e835c94745",
+   "finding_id": "1f3f40c3-7afe-4703-bff8-0335d0b68e14",
+   "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+   "vuln_type": "idor",
+   "strategy": "deny_all_demo",
+   "is_demo_bad_patch": true,
+   "status": "APPLIED",
+   "file_path": "app.py",
+   "line_start": 83,
+   "line_end": 87,
+   "original_snippet": "    def get_document(doc_id):\n        user = get_current_user()\n        doc = query_one(\"SELECT id, owner_id, title, body, is_public FROM documents WHERE id = ?\", (doc_id,))\n        if doc is None:\n            abort(404)\n",
+   "patched_snippet": "    def get_document(doc_id):\n        user = get_current_user()\n        doc = query_one(\"SELECT id, owner_id, title, body, is_public FROM documents WHERE id = ?\", (doc_id,))\n        if doc is None:\n            abort(404)\n        abort(403)  # DEMO ONLY: deliberately over-restrictive \"fix\" - denies everyone\n",
+   "diff": "--- a/app.py\n+++ b/app.py\n@@ -85,6 +85,7 @@\n         doc = query_one(\"SELECT id, owner_id, title, body, is_public FROM documents WHERE id = ?\", (doc_id,))\n         if doc is None:\n             abort(404)\n+        abort(403)  # DEMO ONLY: deliberately over-restrictive \"fix\" - denies everyone\n         return jsonify(dict(doc))\n \n     @app.route(\"/documents/<int:doc_id>/summary\")\n",
+   "rationale": "DEMONSTRATION PATCH. This blocks the IDOR by refusing every request to this route, including the document's owner and authorised teachers. It is intentionally wrong: it closes the hole but breaks legitimate access. The Proof-of-Fix engine's PrivilegeMap regression tests should reject it.",
+   "validation": {
+    "syntax_ok": true,
+    "target_finding_cleared": true,
+    "remaining_findings_in_file": 1,
+    "note": "Static re-scan of the patched file. This is not verification; run the Proof-of-Fix engine."
+   },
+   "approved_by": "demo-user",
+   "approved_at": "2026-10-30T12:18:09.405146",
+   "applied_at": "2026-10-30T12:18:09.405146",
+   "rolled_back_at": null,
+   "created_at": "2026-10-30T12:18:09.032445",
+   "verification_runs": []
+  },
+  "idor:ownership_check": {
+   "id": "a05b6f2e-a4b5-4d52-98fc-c45253501cb8",
+   "finding_id": "1f3f40c3-7afe-4703-bff8-0335d0b68e14",
+   "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+   "vuln_type": "idor",
+   "strategy": "ownership_check",
+   "is_demo_bad_patch": false,
+   "status": "APPLIED",
+   "file_path": "app.py",
+   "line_start": 83,
+   "line_end": 87,
+   "original_snippet": "    def get_document(doc_id):\n        user = get_current_user()\n        doc = query_one(\"SELECT id, owner_id, title, body, is_public FROM documents WHERE id = ?\", (doc_id,))\n        if doc is None:\n            abort(404)\n",
+   "patched_snippet": "    def get_document(doc_id):\n        user = get_current_user()\n        doc = query_one(\"SELECT id, owner_id, title, body, is_public FROM documents WHERE id = ?\", (doc_id,))\n        if doc is None:\n            abort(404)\n        if not can_view_document(user, doc):\n            abort(403)\n",
+   "diff": "--- a/app.py\n+++ b/app.py\n@@ -85,6 +85,8 @@\n         doc = query_one(\"SELECT id, owner_id, title, body, is_public FROM documents WHERE id = ?\", (doc_id,))\n         if doc is None:\n             abort(404)\n+        if not can_view_document(user, doc):\n+            abort(403)\n         return jsonify(dict(doc))\n \n     @app.route(\"/documents/<int:doc_id>/summary\")\n",
+   "rationale": "After loading 'doc' (and after the existing not-found check), the route now calls the module's existing authorisation helper can_view_document(user, doc) and returns HTTP 403 when it fails. This reuses the authorisation rule already defined in the module instead of inventing a new one, so users the rule allows keep access while everyone else is denied. Whether that holds in practice is checked by the PrivilegeMap tests, not assumed.",
+   "validation": {
+    "syntax_ok": true,
+    "target_finding_cleared": true,
+    "remaining_findings_in_file": 0,
+    "note": "Static re-scan of the patched file. This is not verification; run the Proof-of-Fix engine."
+   },
+   "approved_by": "demo-user",
+   "approved_at": "2026-10-30T12:18:09.815200",
+   "applied_at": "2026-10-30T12:18:09.815200",
+   "rolled_back_at": null,
+   "created_at": "2026-10-30T12:18:09.803765",
+   "verification_runs": []
+  }
+ },
+ "rolledBack": {
+  "id": "fb31f1a1-dc59-4ac2-85ac-35e835c94745",
+  "finding_id": "1f3f40c3-7afe-4703-bff8-0335d0b68e14",
+  "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+  "vuln_type": "idor",
+  "strategy": "deny_all_demo",
+  "is_demo_bad_patch": true,
+  "status": "ROLLED_BACK",
+  "file_path": "app.py",
+  "line_start": 83,
+  "line_end": 87,
+  "original_snippet": "    def get_document(doc_id):\n        user = get_current_user()\n        doc = query_one(\"SELECT id, owner_id, title, body, is_public FROM documents WHERE id = ?\", (doc_id,))\n        if doc is None:\n            abort(404)\n",
+  "patched_snippet": "    def get_document(doc_id):\n        user = get_current_user()\n        doc = query_one(\"SELECT id, owner_id, title, body, is_public FROM documents WHERE id = ?\", (doc_id,))\n        if doc is None:\n            abort(404)\n        abort(403)  # DEMO ONLY: deliberately over-restrictive \"fix\" - denies everyone\n",
+  "diff": "--- a/app.py\n+++ b/app.py\n@@ -85,6 +85,7 @@\n         doc = query_one(\"SELECT id, owner_id, title, body, is_public FROM documents WHERE id = ?\", (doc_id,))\n         if doc is None:\n             abort(404)\n+        abort(403)  # DEMO ONLY: deliberately over-restrictive \"fix\" - denies everyone\n         return jsonify(dict(doc))\n \n     @app.route(\"/documents/<int:doc_id>/summary\")\n",
+  "rationale": "DEMONSTRATION PATCH. This blocks the IDOR by refusing every request to this route, including the document's owner and authorised teachers. It is intentionally wrong: it closes the hole but breaks legitimate access. The Proof-of-Fix engine's PrivilegeMap regression tests should reject it.",
+  "validation": {
+   "syntax_ok": true,
+   "target_finding_cleared": true,
+   "remaining_findings_in_file": 1,
+   "note": "Static re-scan of the patched file. This is not verification; run the Proof-of-Fix engine."
+  },
+  "approved_by": "demo-user",
+  "approved_at": "2026-10-30T12:18:09.405146",
+  "applied_at": "2026-10-30T12:18:09.405146",
+  "rolled_back_at": "2026-10-30T12:18:09.793708",
+  "created_at": "2026-10-30T12:18:09.032445",
+  "verification_runs": [
+   {
+    "id": "c9bb6f19-ce74-4ee8-a87d-5c1815c7ddd4",
+    "kind": "proof_of_fix",
+    "status": "COMPLETED",
+    "verdict": "FAILED",
+    "created_at": "2026-10-30T12:18:09.783317"
+   }
+  ]
+ },
+ "runs": {
+  "sqli:parameterized_query": {
+   "id": "18080411-1bb9-4219-a08e-9806d735ad34",
+   "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+   "patch_id": "f2a919f1-3719-4900-bc87-2875e8e8db43",
+   "kind": "proof_of_fix",
+   "scenario": "sqli",
+   "status": "COMPLETED",
+   "verdict": "VERIFIED",
+   "verdict_reasons": [
+    "Original exploit reproduced before the patch",
+    "All 2 security tests pass after the patch",
+    "All 3 regression tests pass after the patch"
+   ],
+   "original_vulnerability_reproduced": true,
+   "exploit_blocked_after_patch": true,
+   "regressions_pass_after_patch": true,
+   "phase_summaries": {
+    "before_patch": {
+     "exploit_reproduced": true,
+     "load_error": null,
+     "duration_ms": 148,
+     "security_tests": {
+      "total": 2,
+      "passed": 0,
+      "failed": 2,
+      "errors": 0
+     },
+     "regression_tests": {
+      "total": 3,
+      "passed": 2,
+      "failed": 1,
+      "errors": 0
+     }
+    },
+    "after_patch": {
+     "exploit_reproduced": false,
+     "load_error": null,
+     "duration_ms": 29,
+     "security_tests": {
+      "total": 2,
+      "passed": 2,
+      "failed": 0,
+      "errors": 0
+     },
+     "regression_tests": {
+      "total": 3,
+      "passed": 3,
+      "failed": 0,
+      "errors": 0
+     }
+    }
+   },
+   "error": null,
+   "started_at": "2026-10-30T12:18:09.050078",
+   "completed_at": "2026-10-30T12:18:09.397858",
+   "duration_ms": 347,
+   "created_at": "2026-10-30T12:18:09.397858",
+   "patch_status": "VERIFIED",
+   "test_results": [
+    {
+     "phase": "before_patch",
+     "category": "security",
+     "test_id": "sqli.tautology_leaks_private_docs",
+     "name": "Tautology injection ( ' OR 1=1 -- )",
+     "description": "Tries to turn the WHERE clause into 'always true' so private documents are returned.",
+     "status": "failed",
+     "expected": "No private documents returned; HTTP 200 or 400",
+     "actual": "Injection succeeded: private documents leaked ['Alice Private Diary', 'Bob Private Grades']",
+     "exploit_succeeded": true,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/search",
+       "params": {
+        "q": "' OR 1=1 --"
+       },
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "[{\"id\":1,\"title\":\"Alice Private Diary\"},{\"id\":2,\"title\":\"Bob Private Grades\"},{\"id\":3,\"title\":\"Algebra Notes\"},{\"id\":4,\"title\":\"Chemistry Lab Safety\"},{\"id\":5,\"title\":\"O'Brien Reading List\"}]\n"
+      }
+     },
+     "privilege_map": null
+    },
+    {
+     "phase": "before_patch",
+     "category": "security",
+     "test_id": "sqli.union_leaks_user_tokens",
+     "name": "UNION injection reading the users table",
+     "description": "Tries to append a UNION SELECT that returns synthetic user API tokens.",
+     "status": "failed",
+     "expected": "No user tokens returned; HTTP 200 or 400",
+     "actual": "Injection succeeded: synthetic user API tokens appeared in search results",
+     "exploit_succeeded": true,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/search",
+       "params": {
+        "q": "' UNION SELECT id, api_token FROM users --"
+       },
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "[{\"id\":1,\"title\":\"tok-alice-SYNTHETIC\"},{\"id\":2,\"title\":\"tok-bob-SYNTHETIC\"},{\"id\":3,\"title\":\"Algebra Notes\"},{\"id\":3,\"title\":\"tok-rivera-SYNTHETIC\"},{\"id\":4,\"title\":\"Chemistry Lab Safety\"},{\"id\":4,\"title\":\"tok-okafor-SYNTHETIC\"},{\"id\":5,\"title\":\"O'Brien Reading List\"}]\n"
+      }
+     },
+     "privilege_map": null
+    },
+    {
+     "phase": "before_patch",
+     "category": "regression",
+     "test_id": "sqli.search_finds_public_doc",
+     "name": "Normal search finds a public document",
+     "description": "Searching 'Algebra' must return the public 'Algebra Notes' document.",
+     "status": "passed",
+     "expected": "HTTP 200 and results include 'Algebra Notes'",
+     "actual": "HTTP 200, titles=['Algebra Notes']",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/search",
+       "params": {
+        "q": "Algebra"
+       },
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "[{\"id\":3,\"title\":\"Algebra Notes\"}]\n"
+      }
+     },
+     "privilege_map": null
+    },
+    {
+     "phase": "before_patch",
+     "category": "regression",
+     "test_id": "sqli.empty_search_lists_public_docs",
+     "name": "Empty search lists every public document",
+     "description": "An empty query must list exactly the public documents and nothing private.",
+     "status": "passed",
+     "expected": "HTTP 200 and titles == ['Algebra Notes', 'Chemistry Lab Safety', \"O'Brien Reading List\"]",
+     "actual": "HTTP 200, titles=['Algebra Notes', 'Chemistry Lab Safety', \"O'Brien Reading List\"]",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/search",
+       "params": {
+        "q": ""
+       },
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "[{\"id\":3,\"title\":\"Algebra Notes\"},{\"id\":4,\"title\":\"Chemistry Lab Safety\"},{\"id\":5,\"title\":\"O'Brien Reading List\"}]\n"
+      }
+     },
+     "privilege_map": null
+    },
+    {
+     "phase": "before_patch",
+     "category": "regression",
+     "test_id": "sqli.search_with_apostrophe",
+     "name": "Search containing an apostrophe works",
+     "description": "Legitimate input with a quote (O'Brien) must be searchable, not crash the query.",
+     "status": "failed",
+     "expected": "HTTP 200 and results include \"O'Brien Reading List\"",
+     "actual": "HTTP 500, no result list",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/search",
+       "params": {
+        "q": "O'Brien"
+       },
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 500,
+       "body_excerpt": "<!doctype html>\n<html lang=en>\n<title>500 Internal Server Error</title>\n<h1>Internal Server Error</h1>\n<p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.</p>\n"
+      }
+     },
+     "privilege_map": null
+    },
+    {
+     "phase": "after_patch",
+     "category": "security",
+     "test_id": "sqli.tautology_leaks_private_docs",
+     "name": "Tautology injection ( ' OR 1=1 -- )",
+     "description": "Tries to turn the WHERE clause into 'always true' so private documents are returned.",
+     "status": "passed",
+     "expected": "No private documents returned; HTTP 200 or 400",
+     "actual": "Payload treated as text; HTTP 200, no private documents returned",
+     "exploit_succeeded": false,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/search",
+       "params": {
+        "q": "' OR 1=1 --"
+       },
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "[]\n"
+      }
+     },
+     "privilege_map": null
+    },
+    {
+     "phase": "after_patch",
+     "category": "security",
+     "test_id": "sqli.union_leaks_user_tokens",
+     "name": "UNION injection reading the users table",
+     "description": "Tries to append a UNION SELECT that returns synthetic user API tokens.",
+     "status": "passed",
+     "expected": "No user tokens returned; HTTP 200 or 400",
+     "actual": "Payload treated as text; HTTP 200, no user data returned",
+     "exploit_succeeded": false,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/search",
+       "params": {
+        "q": "' UNION SELECT id, api_token FROM users --"
+       },
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "[]\n"
+      }
+     },
+     "privilege_map": null
+    },
+    {
+     "phase": "after_patch",
+     "category": "regression",
+     "test_id": "sqli.search_finds_public_doc",
+     "name": "Normal search finds a public document",
+     "description": "Searching 'Algebra' must return the public 'Algebra Notes' document.",
+     "status": "passed",
+     "expected": "HTTP 200 and results include 'Algebra Notes'",
+     "actual": "HTTP 200, titles=['Algebra Notes']",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/search",
+       "params": {
+        "q": "Algebra"
+       },
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "[{\"id\":3,\"title\":\"Algebra Notes\"}]\n"
+      }
+     },
+     "privilege_map": null
+    },
+    {
+     "phase": "after_patch",
+     "category": "regression",
+     "test_id": "sqli.empty_search_lists_public_docs",
+     "name": "Empty search lists every public document",
+     "description": "An empty query must list exactly the public documents and nothing private.",
+     "status": "passed",
+     "expected": "HTTP 200 and titles == ['Algebra Notes', 'Chemistry Lab Safety', \"O'Brien Reading List\"]",
+     "actual": "HTTP 200, titles=['Algebra Notes', 'Chemistry Lab Safety', \"O'Brien Reading List\"]",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/search",
+       "params": {
+        "q": ""
+       },
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "[{\"id\":3,\"title\":\"Algebra Notes\"},{\"id\":4,\"title\":\"Chemistry Lab Safety\"},{\"id\":5,\"title\":\"O'Brien Reading List\"}]\n"
+      }
+     },
+     "privilege_map": null
+    },
+    {
+     "phase": "after_patch",
+     "category": "regression",
+     "test_id": "sqli.search_with_apostrophe",
+     "name": "Search containing an apostrophe works",
+     "description": "Legitimate input with a quote (O'Brien) must be searchable, not crash the query.",
+     "status": "passed",
+     "expected": "HTTP 200 and results include \"O'Brien Reading List\"",
+     "actual": "HTTP 200, titles=[\"O'Brien Reading List\"]",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/search",
+       "params": {
+        "q": "O'Brien"
+       },
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "[{\"id\":5,\"title\":\"O'Brien Reading List\"}]\n"
+      }
+     },
+     "privilege_map": null
+    }
+   ]
+  },
+  "idor:deny_all_demo": {
+   "id": "c9bb6f19-ce74-4ee8-a87d-5c1815c7ddd4",
+   "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+   "patch_id": "fb31f1a1-dc59-4ac2-85ac-35e835c94745",
+   "kind": "proof_of_fix",
+   "scenario": "idor",
+   "status": "COMPLETED",
+   "verdict": "FAILED",
+   "verdict_reasons": [
+    "after_patch: regression tests failing (legitimate behaviour broken): ['idor.alice_reads_own_doc', 'idor.teacher_reads_assigned_student_doc', 'idor.anonymous_reads_public_doc']"
+   ],
+   "original_vulnerability_reproduced": true,
+   "exploit_blocked_after_patch": true,
+   "regressions_pass_after_patch": false,
+   "phase_summaries": {
+    "before_patch": {
+     "exploit_reproduced": true,
+     "load_error": null,
+     "duration_ms": 141,
+     "security_tests": {
+      "total": 4,
+      "passed": 0,
+      "failed": 4,
+      "errors": 0
+     },
+     "regression_tests": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0,
+      "errors": 0
+     }
+    },
+    "after_patch": {
+     "exploit_reproduced": false,
+     "load_error": null,
+     "duration_ms": 46,
+     "security_tests": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0,
+      "errors": 0
+     },
+     "regression_tests": {
+      "total": 4,
+      "passed": 1,
+      "failed": 3,
+      "errors": 0
+     }
+    }
+   },
+   "error": null,
+   "started_at": "2026-10-30T12:18:09.413944",
+   "completed_at": "2026-10-30T12:18:09.780965",
+   "duration_ms": 364,
+   "created_at": "2026-10-30T12:18:09.783317",
+   "patch_status": "REJECTED",
+   "test_results": [
+    {
+     "phase": "before_patch",
+     "category": "security",
+     "test_id": "idor.alice_reads_bob_doc",
+     "name": "alice -> document 2: expect DENY",
+     "description": "Students must not read another student's private document.",
+     "status": "failed",
+     "expected": "DENY",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": true,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/2",
+       "params": {},
+       "actor": "alice"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-BOB: term grades draft\",\"id\":2,\"is_public\":0,\"owner_id\":2,\"title\":\"Bob Private Grades\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "alice_reads_bob_doc",
+      "actor": "alice",
+      "resource": "document:2",
+      "expected": "DENY",
+      "observed": "ALLOW",
+      "reason": "Students must not read another student's private document."
+     }
+    },
+    {
+     "phase": "before_patch",
+     "category": "security",
+     "test_id": "idor.bob_reads_alice_doc",
+     "name": "bob -> document 1: expect DENY",
+     "description": "Students must not read another student's private document.",
+     "status": "failed",
+     "expected": "DENY",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": true,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "bob"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-ALICE: notes for my eyes only\",\"id\":1,\"is_public\":0,\"owner_id\":1,\"title\":\"Alice Private Diary\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "bob_reads_alice_doc",
+      "actor": "bob",
+      "resource": "document:1",
+      "expected": "DENY",
+      "observed": "ALLOW",
+      "reason": "Students must not read another student's private document."
+     }
+    },
+    {
+     "phase": "before_patch",
+     "category": "security",
+     "test_id": "idor.teacher_reads_unassigned_student_doc",
+     "name": "mr_okafor -> document 2: expect DENY",
+     "description": "Teachers must not read documents of students not assigned to them.",
+     "status": "failed",
+     "expected": "DENY",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": true,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/2",
+       "params": {},
+       "actor": "mr_okafor"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-BOB: term grades draft\",\"id\":2,\"is_public\":0,\"owner_id\":2,\"title\":\"Bob Private Grades\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "teacher_reads_unassigned_student_doc",
+      "actor": "mr_okafor",
+      "resource": "document:2",
+      "expected": "DENY",
+      "observed": "ALLOW",
+      "reason": "Teachers must not read documents of students not assigned to them."
+     }
+    },
+    {
+     "phase": "before_patch",
+     "category": "security",
+     "test_id": "idor.anonymous_reads_private_doc",
+     "name": "anonymous -> document 1: expect DENY",
+     "description": "Anonymous callers must not read private documents.",
+     "status": "failed",
+     "expected": "DENY",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": true,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-ALICE: notes for my eyes only\",\"id\":1,\"is_public\":0,\"owner_id\":1,\"title\":\"Alice Private Diary\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "anonymous_reads_private_doc",
+      "actor": "anonymous",
+      "resource": "document:1",
+      "expected": "DENY",
+      "observed": "ALLOW",
+      "reason": "Anonymous callers must not read private documents."
+     }
+    },
+    {
+     "phase": "before_patch",
+     "category": "regression",
+     "test_id": "idor.alice_reads_own_doc",
+     "name": "alice -> document 1: expect ALLOW",
+     "description": "Students may read their own documents.",
+     "status": "passed",
+     "expected": "ALLOW",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "alice"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-ALICE: notes for my eyes only\",\"id\":1,\"is_public\":0,\"owner_id\":1,\"title\":\"Alice Private Diary\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "alice_reads_own_doc",
+      "actor": "alice",
+      "resource": "document:1",
+      "expected": "ALLOW",
+      "observed": "ALLOW",
+      "reason": "Students may read their own documents."
+     }
+    },
+    {
+     "phase": "before_patch",
+     "category": "regression",
+     "test_id": "idor.teacher_reads_assigned_student_doc",
+     "name": "ms_rivera -> document 1: expect ALLOW",
+     "description": "Teachers may read documents of students assigned to them.",
+     "status": "passed",
+     "expected": "ALLOW",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "ms_rivera"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-ALICE: notes for my eyes only\",\"id\":1,\"is_public\":0,\"owner_id\":1,\"title\":\"Alice Private Diary\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "teacher_reads_assigned_student_doc",
+      "actor": "ms_rivera",
+      "resource": "document:1",
+      "expected": "ALLOW",
+      "observed": "ALLOW",
+      "reason": "Teachers may read documents of students assigned to them."
+     }
+    },
+    {
+     "phase": "before_patch",
+     "category": "regression",
+     "test_id": "idor.anonymous_reads_public_doc",
+     "name": "anonymous -> document 3: expect ALLOW",
+     "description": "Anyone may read public documents.",
+     "status": "passed",
+     "expected": "ALLOW",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/3",
+       "params": {},
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"Public algebra notes for all students\",\"id\":3,\"is_public\":1,\"owner_id\":3,\"title\":\"Algebra Notes\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "anonymous_reads_public_doc",
+      "actor": "anonymous",
+      "resource": "document:3",
+      "expected": "ALLOW",
+      "observed": "ALLOW",
+      "reason": "Anyone may read public documents."
+     }
+    },
+    {
+     "phase": "before_patch",
+     "category": "regression",
+     "test_id": "idor.owner_lists_own_documents",
+     "name": "alice lists her own documents",
+     "description": "GET /documents/mine must still return exactly alice's documents.",
+     "status": "passed",
+     "expected": "HTTP 200 and ids == [1]",
+     "actual": "HTTP 200, ids=[1]",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/mine",
+       "params": {},
+       "actor": "alice"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "[{\"id\":1,\"is_public\":0,\"title\":\"Alice Private Diary\"}]\n"
+      }
+     },
+     "privilege_map": null
+    },
+    {
+     "phase": "after_patch",
+     "category": "security",
+     "test_id": "idor.alice_reads_bob_doc",
+     "name": "alice -> document 2: expect DENY",
+     "description": "Students must not read another student's private document.",
+     "status": "passed",
+     "expected": "DENY",
+     "actual": "DENY (HTTP 403)",
+     "exploit_succeeded": false,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/2",
+       "params": {},
+       "actor": "alice"
+      },
+      "response": {
+       "status_code": 403,
+       "body_excerpt": "<!doctype html>\n<html lang=en>\n<title>403 Forbidden</title>\n<h1>Forbidden</h1>\n<p>You don&#39;t have the permission to access the requested resource. It is either read-protected or not readable by the server.</p>\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "alice_reads_bob_doc",
+      "actor": "alice",
+      "resource": "document:2",
+      "expected": "DENY",
+      "observed": "DENY",
+      "reason": "Students must not read another student's private document."
+     }
+    },
+    {
+     "phase": "after_patch",
+     "category": "security",
+     "test_id": "idor.bob_reads_alice_doc",
+     "name": "bob -> document 1: expect DENY",
+     "description": "Students must not read another student's private document.",
+     "status": "passed",
+     "expected": "DENY",
+     "actual": "DENY (HTTP 403)",
+     "exploit_succeeded": false,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "bob"
+      },
+      "response": {
+       "status_code": 403,
+       "body_excerpt": "<!doctype html>\n<html lang=en>\n<title>403 Forbidden</title>\n<h1>Forbidden</h1>\n<p>You don&#39;t have the permission to access the requested resource. It is either read-protected or not readable by the server.</p>\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "bob_reads_alice_doc",
+      "actor": "bob",
+      "resource": "document:1",
+      "expected": "DENY",
+      "observed": "DENY",
+      "reason": "Students must not read another student's private document."
+     }
+    },
+    {
+     "phase": "after_patch",
+     "category": "security",
+     "test_id": "idor.teacher_reads_unassigned_student_doc",
+     "name": "mr_okafor -> document 2: expect DENY",
+     "description": "Teachers must not read documents of students not assigned to them.",
+     "status": "passed",
+     "expected": "DENY",
+     "actual": "DENY (HTTP 403)",
+     "exploit_succeeded": false,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/2",
+       "params": {},
+       "actor": "mr_okafor"
+      },
+      "response": {
+       "status_code": 403,
+       "body_excerpt": "<!doctype html>\n<html lang=en>\n<title>403 Forbidden</title>\n<h1>Forbidden</h1>\n<p>You don&#39;t have the permission to access the requested resource. It is either read-protected or not readable by the server.</p>\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "teacher_reads_unassigned_student_doc",
+      "actor": "mr_okafor",
+      "resource": "document:2",
+      "expected": "DENY",
+      "observed": "DENY",
+      "reason": "Teachers must not read documents of students not assigned to them."
+     }
+    },
+    {
+     "phase": "after_patch",
+     "category": "security",
+     "test_id": "idor.anonymous_reads_private_doc",
+     "name": "anonymous -> document 1: expect DENY",
+     "description": "Anonymous callers must not read private documents.",
+     "status": "passed",
+     "expected": "DENY",
+     "actual": "DENY (HTTP 403)",
+     "exploit_succeeded": false,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 403,
+       "body_excerpt": "<!doctype html>\n<html lang=en>\n<title>403 Forbidden</title>\n<h1>Forbidden</h1>\n<p>You don&#39;t have the permission to access the requested resource. It is either read-protected or not readable by the server.</p>\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "anonymous_reads_private_doc",
+      "actor": "anonymous",
+      "resource": "document:1",
+      "expected": "DENY",
+      "observed": "DENY",
+      "reason": "Anonymous callers must not read private documents."
+     }
+    },
+    {
+     "phase": "after_patch",
+     "category": "regression",
+     "test_id": "idor.alice_reads_own_doc",
+     "name": "alice -> document 1: expect ALLOW",
+     "description": "Students may read their own documents.",
+     "status": "failed",
+     "expected": "ALLOW",
+     "actual": "DENY (HTTP 403)",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "alice"
+      },
+      "response": {
+       "status_code": 403,
+       "body_excerpt": "<!doctype html>\n<html lang=en>\n<title>403 Forbidden</title>\n<h1>Forbidden</h1>\n<p>You don&#39;t have the permission to access the requested resource. It is either read-protected or not readable by the server.</p>\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "alice_reads_own_doc",
+      "actor": "alice",
+      "resource": "document:1",
+      "expected": "ALLOW",
+      "observed": "DENY",
+      "reason": "Students may read their own documents."
+     }
+    },
+    {
+     "phase": "after_patch",
+     "category": "regression",
+     "test_id": "idor.teacher_reads_assigned_student_doc",
+     "name": "ms_rivera -> document 1: expect ALLOW",
+     "description": "Teachers may read documents of students assigned to them.",
+     "status": "failed",
+     "expected": "ALLOW",
+     "actual": "DENY (HTTP 403)",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "ms_rivera"
+      },
+      "response": {
+       "status_code": 403,
+       "body_excerpt": "<!doctype html>\n<html lang=en>\n<title>403 Forbidden</title>\n<h1>Forbidden</h1>\n<p>You don&#39;t have the permission to access the requested resource. It is either read-protected or not readable by the server.</p>\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "teacher_reads_assigned_student_doc",
+      "actor": "ms_rivera",
+      "resource": "document:1",
+      "expected": "ALLOW",
+      "observed": "DENY",
+      "reason": "Teachers may read documents of students assigned to them."
+     }
+    },
+    {
+     "phase": "after_patch",
+     "category": "regression",
+     "test_id": "idor.anonymous_reads_public_doc",
+     "name": "anonymous -> document 3: expect ALLOW",
+     "description": "Anyone may read public documents.",
+     "status": "failed",
+     "expected": "ALLOW",
+     "actual": "DENY (HTTP 403)",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/3",
+       "params": {},
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 403,
+       "body_excerpt": "<!doctype html>\n<html lang=en>\n<title>403 Forbidden</title>\n<h1>Forbidden</h1>\n<p>You don&#39;t have the permission to access the requested resource. It is either read-protected or not readable by the server.</p>\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "anonymous_reads_public_doc",
+      "actor": "anonymous",
+      "resource": "document:3",
+      "expected": "ALLOW",
+      "observed": "DENY",
+      "reason": "Anyone may read public documents."
+     }
+    },
+    {
+     "phase": "after_patch",
+     "category": "regression",
+     "test_id": "idor.owner_lists_own_documents",
+     "name": "alice lists her own documents",
+     "description": "GET /documents/mine must still return exactly alice's documents.",
+     "status": "passed",
+     "expected": "HTTP 200 and ids == [1]",
+     "actual": "HTTP 200, ids=[1]",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/mine",
+       "params": {},
+       "actor": "alice"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "[{\"id\":1,\"is_public\":0,\"title\":\"Alice Private Diary\"}]\n"
+      }
+     },
+     "privilege_map": null
+    }
+   ]
+  },
+  "idor:ownership_check": {
+   "id": "91619a61-661b-482b-b144-6e6f0a8d67c4",
+   "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+   "patch_id": "a05b6f2e-a4b5-4d52-98fc-c45253501cb8",
+   "kind": "proof_of_fix",
+   "scenario": "idor",
+   "status": "COMPLETED",
+   "verdict": "VERIFIED",
+   "verdict_reasons": [
+    "Original exploit reproduced before the patch",
+    "All 4 security tests pass after the patch",
+    "All 4 regression tests pass after the patch"
+   ],
+   "original_vulnerability_reproduced": true,
+   "exploit_blocked_after_patch": true,
+   "regressions_pass_after_patch": true,
+   "phase_summaries": {
+    "before_patch": {
+     "exploit_reproduced": true,
+     "load_error": null,
+     "duration_ms": 137,
+     "security_tests": {
+      "total": 4,
+      "passed": 0,
+      "failed": 4,
+      "errors": 0
+     },
+     "regression_tests": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0,
+      "errors": 0
+     }
+    },
+    "after_patch": {
+     "exploit_reproduced": false,
+     "load_error": null,
+     "duration_ms": 42,
+     "security_tests": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0,
+      "errors": 0
+     },
+     "regression_tests": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0,
+      "errors": 0
+     }
+    }
+   },
+   "error": null,
+   "started_at": "2026-10-30T12:18:09.815200",
+   "completed_at": "2026-10-30T12:18:10.181264",
+   "duration_ms": 362,
+   "created_at": "2026-10-30T12:18:10.181264",
+   "patch_status": "VERIFIED",
+   "test_results": [
+    {
+     "phase": "before_patch",
+     "category": "security",
+     "test_id": "idor.alice_reads_bob_doc",
+     "name": "alice -> document 2: expect DENY",
+     "description": "Students must not read another student's private document.",
+     "status": "failed",
+     "expected": "DENY",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": true,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/2",
+       "params": {},
+       "actor": "alice"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-BOB: term grades draft\",\"id\":2,\"is_public\":0,\"owner_id\":2,\"title\":\"Bob Private Grades\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "alice_reads_bob_doc",
+      "actor": "alice",
+      "resource": "document:2",
+      "expected": "DENY",
+      "observed": "ALLOW",
+      "reason": "Students must not read another student's private document."
+     }
+    },
+    {
+     "phase": "before_patch",
+     "category": "security",
+     "test_id": "idor.bob_reads_alice_doc",
+     "name": "bob -> document 1: expect DENY",
+     "description": "Students must not read another student's private document.",
+     "status": "failed",
+     "expected": "DENY",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": true,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "bob"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-ALICE: notes for my eyes only\",\"id\":1,\"is_public\":0,\"owner_id\":1,\"title\":\"Alice Private Diary\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "bob_reads_alice_doc",
+      "actor": "bob",
+      "resource": "document:1",
+      "expected": "DENY",
+      "observed": "ALLOW",
+      "reason": "Students must not read another student's private document."
+     }
+    },
+    {
+     "phase": "before_patch",
+     "category": "security",
+     "test_id": "idor.teacher_reads_unassigned_student_doc",
+     "name": "mr_okafor -> document 2: expect DENY",
+     "description": "Teachers must not read documents of students not assigned to them.",
+     "status": "failed",
+     "expected": "DENY",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": true,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/2",
+       "params": {},
+       "actor": "mr_okafor"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-BOB: term grades draft\",\"id\":2,\"is_public\":0,\"owner_id\":2,\"title\":\"Bob Private Grades\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "teacher_reads_unassigned_student_doc",
+      "actor": "mr_okafor",
+      "resource": "document:2",
+      "expected": "DENY",
+      "observed": "ALLOW",
+      "reason": "Teachers must not read documents of students not assigned to them."
+     }
+    },
+    {
+     "phase": "before_patch",
+     "category": "security",
+     "test_id": "idor.anonymous_reads_private_doc",
+     "name": "anonymous -> document 1: expect DENY",
+     "description": "Anonymous callers must not read private documents.",
+     "status": "failed",
+     "expected": "DENY",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": true,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-ALICE: notes for my eyes only\",\"id\":1,\"is_public\":0,\"owner_id\":1,\"title\":\"Alice Private Diary\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "anonymous_reads_private_doc",
+      "actor": "anonymous",
+      "resource": "document:1",
+      "expected": "DENY",
+      "observed": "ALLOW",
+      "reason": "Anonymous callers must not read private documents."
+     }
+    },
+    {
+     "phase": "before_patch",
+     "category": "regression",
+     "test_id": "idor.alice_reads_own_doc",
+     "name": "alice -> document 1: expect ALLOW",
+     "description": "Students may read their own documents.",
+     "status": "passed",
+     "expected": "ALLOW",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "alice"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-ALICE: notes for my eyes only\",\"id\":1,\"is_public\":0,\"owner_id\":1,\"title\":\"Alice Private Diary\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "alice_reads_own_doc",
+      "actor": "alice",
+      "resource": "document:1",
+      "expected": "ALLOW",
+      "observed": "ALLOW",
+      "reason": "Students may read their own documents."
+     }
+    },
+    {
+     "phase": "before_patch",
+     "category": "regression",
+     "test_id": "idor.teacher_reads_assigned_student_doc",
+     "name": "ms_rivera -> document 1: expect ALLOW",
+     "description": "Teachers may read documents of students assigned to them.",
+     "status": "passed",
+     "expected": "ALLOW",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "ms_rivera"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-ALICE: notes for my eyes only\",\"id\":1,\"is_public\":0,\"owner_id\":1,\"title\":\"Alice Private Diary\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "teacher_reads_assigned_student_doc",
+      "actor": "ms_rivera",
+      "resource": "document:1",
+      "expected": "ALLOW",
+      "observed": "ALLOW",
+      "reason": "Teachers may read documents of students assigned to them."
+     }
+    },
+    {
+     "phase": "before_patch",
+     "category": "regression",
+     "test_id": "idor.anonymous_reads_public_doc",
+     "name": "anonymous -> document 3: expect ALLOW",
+     "description": "Anyone may read public documents.",
+     "status": "passed",
+     "expected": "ALLOW",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/3",
+       "params": {},
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"Public algebra notes for all students\",\"id\":3,\"is_public\":1,\"owner_id\":3,\"title\":\"Algebra Notes\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "anonymous_reads_public_doc",
+      "actor": "anonymous",
+      "resource": "document:3",
+      "expected": "ALLOW",
+      "observed": "ALLOW",
+      "reason": "Anyone may read public documents."
+     }
+    },
+    {
+     "phase": "before_patch",
+     "category": "regression",
+     "test_id": "idor.owner_lists_own_documents",
+     "name": "alice lists her own documents",
+     "description": "GET /documents/mine must still return exactly alice's documents.",
+     "status": "passed",
+     "expected": "HTTP 200 and ids == [1]",
+     "actual": "HTTP 200, ids=[1]",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/mine",
+       "params": {},
+       "actor": "alice"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "[{\"id\":1,\"is_public\":0,\"title\":\"Alice Private Diary\"}]\n"
+      }
+     },
+     "privilege_map": null
+    },
+    {
+     "phase": "after_patch",
+     "category": "security",
+     "test_id": "idor.alice_reads_bob_doc",
+     "name": "alice -> document 2: expect DENY",
+     "description": "Students must not read another student's private document.",
+     "status": "passed",
+     "expected": "DENY",
+     "actual": "DENY (HTTP 403)",
+     "exploit_succeeded": false,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/2",
+       "params": {},
+       "actor": "alice"
+      },
+      "response": {
+       "status_code": 403,
+       "body_excerpt": "<!doctype html>\n<html lang=en>\n<title>403 Forbidden</title>\n<h1>Forbidden</h1>\n<p>You don&#39;t have the permission to access the requested resource. It is either read-protected or not readable by the server.</p>\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "alice_reads_bob_doc",
+      "actor": "alice",
+      "resource": "document:2",
+      "expected": "DENY",
+      "observed": "DENY",
+      "reason": "Students must not read another student's private document."
+     }
+    },
+    {
+     "phase": "after_patch",
+     "category": "security",
+     "test_id": "idor.bob_reads_alice_doc",
+     "name": "bob -> document 1: expect DENY",
+     "description": "Students must not read another student's private document.",
+     "status": "passed",
+     "expected": "DENY",
+     "actual": "DENY (HTTP 403)",
+     "exploit_succeeded": false,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "bob"
+      },
+      "response": {
+       "status_code": 403,
+       "body_excerpt": "<!doctype html>\n<html lang=en>\n<title>403 Forbidden</title>\n<h1>Forbidden</h1>\n<p>You don&#39;t have the permission to access the requested resource. It is either read-protected or not readable by the server.</p>\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "bob_reads_alice_doc",
+      "actor": "bob",
+      "resource": "document:1",
+      "expected": "DENY",
+      "observed": "DENY",
+      "reason": "Students must not read another student's private document."
+     }
+    },
+    {
+     "phase": "after_patch",
+     "category": "security",
+     "test_id": "idor.teacher_reads_unassigned_student_doc",
+     "name": "mr_okafor -> document 2: expect DENY",
+     "description": "Teachers must not read documents of students not assigned to them.",
+     "status": "passed",
+     "expected": "DENY",
+     "actual": "DENY (HTTP 403)",
+     "exploit_succeeded": false,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/2",
+       "params": {},
+       "actor": "mr_okafor"
+      },
+      "response": {
+       "status_code": 403,
+       "body_excerpt": "<!doctype html>\n<html lang=en>\n<title>403 Forbidden</title>\n<h1>Forbidden</h1>\n<p>You don&#39;t have the permission to access the requested resource. It is either read-protected or not readable by the server.</p>\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "teacher_reads_unassigned_student_doc",
+      "actor": "mr_okafor",
+      "resource": "document:2",
+      "expected": "DENY",
+      "observed": "DENY",
+      "reason": "Teachers must not read documents of students not assigned to them."
+     }
+    },
+    {
+     "phase": "after_patch",
+     "category": "security",
+     "test_id": "idor.anonymous_reads_private_doc",
+     "name": "anonymous -> document 1: expect DENY",
+     "description": "Anonymous callers must not read private documents.",
+     "status": "passed",
+     "expected": "DENY",
+     "actual": "DENY (HTTP 403)",
+     "exploit_succeeded": false,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 403,
+       "body_excerpt": "<!doctype html>\n<html lang=en>\n<title>403 Forbidden</title>\n<h1>Forbidden</h1>\n<p>You don&#39;t have the permission to access the requested resource. It is either read-protected or not readable by the server.</p>\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "anonymous_reads_private_doc",
+      "actor": "anonymous",
+      "resource": "document:1",
+      "expected": "DENY",
+      "observed": "DENY",
+      "reason": "Anonymous callers must not read private documents."
+     }
+    },
+    {
+     "phase": "after_patch",
+     "category": "regression",
+     "test_id": "idor.alice_reads_own_doc",
+     "name": "alice -> document 1: expect ALLOW",
+     "description": "Students may read their own documents.",
+     "status": "passed",
+     "expected": "ALLOW",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "alice"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-ALICE: notes for my eyes only\",\"id\":1,\"is_public\":0,\"owner_id\":1,\"title\":\"Alice Private Diary\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "alice_reads_own_doc",
+      "actor": "alice",
+      "resource": "document:1",
+      "expected": "ALLOW",
+      "observed": "ALLOW",
+      "reason": "Students may read their own documents."
+     }
+    },
+    {
+     "phase": "after_patch",
+     "category": "regression",
+     "test_id": "idor.teacher_reads_assigned_student_doc",
+     "name": "ms_rivera -> document 1: expect ALLOW",
+     "description": "Teachers may read documents of students assigned to them.",
+     "status": "passed",
+     "expected": "ALLOW",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/1",
+       "params": {},
+       "actor": "ms_rivera"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"SYNTHETIC-PRIVATE-ALICE: notes for my eyes only\",\"id\":1,\"is_public\":0,\"owner_id\":1,\"title\":\"Alice Private Diary\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "teacher_reads_assigned_student_doc",
+      "actor": "ms_rivera",
+      "resource": "document:1",
+      "expected": "ALLOW",
+      "observed": "ALLOW",
+      "reason": "Teachers may read documents of students assigned to them."
+     }
+    },
+    {
+     "phase": "after_patch",
+     "category": "regression",
+     "test_id": "idor.anonymous_reads_public_doc",
+     "name": "anonymous -> document 3: expect ALLOW",
+     "description": "Anyone may read public documents.",
+     "status": "passed",
+     "expected": "ALLOW",
+     "actual": "ALLOW (HTTP 200)",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/3",
+       "params": {},
+       "actor": "anonymous"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "{\"body\":\"Public algebra notes for all students\",\"id\":3,\"is_public\":1,\"owner_id\":3,\"title\":\"Algebra Notes\"}\n"
+      }
+     },
+     "privilege_map": {
+      "rule_id": "anonymous_reads_public_doc",
+      "actor": "anonymous",
+      "resource": "document:3",
+      "expected": "ALLOW",
+      "observed": "ALLOW",
+      "reason": "Anyone may read public documents."
+     }
+    },
+    {
+     "phase": "after_patch",
+     "category": "regression",
+     "test_id": "idor.owner_lists_own_documents",
+     "name": "alice lists her own documents",
+     "description": "GET /documents/mine must still return exactly alice's documents.",
+     "status": "passed",
+     "expected": "HTTP 200 and ids == [1]",
+     "actual": "HTTP 200, ids=[1]",
+     "exploit_succeeded": null,
+     "evidence": {
+      "request": {
+       "method": "GET",
+       "path": "/documents/mine",
+       "params": {},
+       "actor": "alice"
+      },
+      "response": {
+       "status_code": 200,
+       "body_excerpt": "[{\"id\":1,\"is_public\":0,\"title\":\"Alice Private Diary\"}]\n"
+      }
+     },
+     "privilege_map": null
+    }
+   ]
+  }
+ },
+ "dashboard": {
+  "total_projects": 1,
+  "total_scans": 1,
+  "total_findings": 2,
+  "findings_by_severity": {
+   "CRITICAL": 1,
+   "HIGH": 1,
+   "MEDIUM": 0,
+   "LOW": 0
+  },
+  "patches_generated": 3,
+  "patches_verified": 2,
+  "patches_rejected": 0,
+  "verification_runs_by_verdict": {
+   "VERIFIED": 2,
+   "PARTIALLY_VERIFIED": 0,
+   "FAILED": 1
+  },
+  "recent_scans": [
+   {
+    "id": "cfc797bb-6c43-4089-988e-99ab2db87d2c",
+    "project_id": "9d8c4b29-36b7-46a3-9a0d-4cb72e35244d",
+    "project_name": "Student Portal Demo",
+    "status": "COMPLETED",
+    "findings_count": 2,
+    "started_at": "2026-10-30T12:18:08.309377"
+   }
+  ]
+ },
+ "ollama": {
+  "available": false,
+  "base_url": "http://127.0.0.1:9",
+  "model": null,
+  "model_installed": false,
+  "installed_models": [],
+  "message": "Ollama is not reachable at http://127.0.0.1:9 (ConnectError). PatchProof works fully without it."
+ }
+}
