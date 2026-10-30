@@ -1,0 +1,329 @@
+{
+  "schema_version": "1.0",
+  "mode": "compare",
+  "scenario": "sqli",
+  "generated_at": "2026-10-30T12:42:27.779142+00:00",
+  "phases": {
+    "before_patch": {
+      "phase": "before_patch",
+      "scenario": "sqli",
+      "app_dir": "C:\\Users\\LENOVO\\Downloads\\patcher-main\\patcher-main\\fixtures\\vulnerable_app",
+      "started_at": "2026-10-30T12:42:27.201932+00:00",
+      "duration_ms": 532,
+      "load_error": null,
+      "exploit_reproduced": true,
+      "security_tests": {
+        "total": 2,
+        "passed": 0,
+        "failed": 2,
+        "errors": 0,
+        "results": [
+          {
+            "test_id": "sqli.tautology_leaks_private_docs",
+            "scenario": "sqli",
+            "category": "security",
+            "name": "Tautology injection ( ' OR 1=1 -- )",
+            "description": "Tries to turn the WHERE clause into 'always true' so private documents are returned.",
+            "expected": "No private documents returned; HTTP 200 or 400",
+            "status": "failed",
+            "actual": "Injection succeeded: private documents leaked ['Alice Private Diary', 'Bob Private Grades']",
+            "exploit_succeeded": true,
+            "evidence": {
+              "request": {
+                "method": "GET",
+                "path": "/search",
+                "params": {
+                  "q": "' OR 1=1 --"
+                },
+                "actor": "anonymous"
+              },
+              "response": {
+                "status_code": 200,
+                "body_excerpt": "[{\"id\":1,\"title\":\"Alice Private Diary\"},{\"id\":2,\"title\":\"Bob Private Grades\"},{\"id\":3,\"title\":\"Algebra Notes\"},{\"id\":4,\"title\":\"Chemistry Lab Safety\"},{\"id\":5,\"title\":\"O'Brien Reading List\"}]\n"
+              }
+            },
+            "privilege_map": null
+          },
+          {
+            "test_id": "sqli.union_leaks_user_tokens",
+            "scenario": "sqli",
+            "category": "security",
+            "name": "UNION injection reading the users table",
+            "description": "Tries to append a UNION SELECT that returns synthetic user API tokens.",
+            "expected": "No user tokens returned; HTTP 200 or 400",
+            "status": "failed",
+            "actual": "Injection succeeded: synthetic user API tokens appeared in search results",
+            "exploit_succeeded": true,
+            "evidence": {
+              "request": {
+                "method": "GET",
+                "path": "/search",
+                "params": {
+                  "q": "' UNION SELECT id, api_token FROM users --"
+                },
+                "actor": "anonymous"
+              },
+              "response": {
+                "status_code": 200,
+                "body_excerpt": "[{\"id\":1,\"title\":\"tok-alice-SYNTHETIC\"},{\"id\":2,\"title\":\"tok-bob-SYNTHETIC\"},{\"id\":3,\"title\":\"Algebra Notes\"},{\"id\":3,\"title\":\"tok-rivera-SYNTHETIC\"},{\"id\":4,\"title\":\"Chemistry Lab Safety\"},{\"id\":4,\"title\":\"tok-okafor-SYNTHETIC\"},{\"id\":5,\"title\":\"O'Brien Reading List\"}]\n"
+              }
+            },
+            "privilege_map": null
+          }
+        ]
+      },
+      "regression_tests": {
+        "total": 3,
+        "passed": 2,
+        "failed": 1,
+        "errors": 0,
+        "results": [
+          {
+            "test_id": "sqli.search_finds_public_doc",
+            "scenario": "sqli",
+            "category": "regression",
+            "name": "Normal search finds a public document",
+            "description": "Searching 'Algebra' must return the public 'Algebra Notes' document.",
+            "expected": "HTTP 200 and results include 'Algebra Notes'",
+            "status": "passed",
+            "actual": "HTTP 200, titles=['Algebra Notes']",
+            "exploit_succeeded": null,
+            "evidence": {
+              "request": {
+                "method": "GET",
+                "path": "/search",
+                "params": {
+                  "q": "Algebra"
+                },
+                "actor": "anonymous"
+              },
+              "response": {
+                "status_code": 200,
+                "body_excerpt": "[{\"id\":3,\"title\":\"Algebra Notes\"}]\n"
+              }
+            },
+            "privilege_map": null
+          },
+          {
+            "test_id": "sqli.empty_search_lists_public_docs",
+            "scenario": "sqli",
+            "category": "regression",
+            "name": "Empty search lists every public document",
+            "description": "An empty query must list exactly the public documents and nothing private.",
+            "expected": "HTTP 200 and titles == ['Algebra Notes', 'Chemistry Lab Safety', \"O'Brien Reading List\"]",
+            "status": "passed",
+            "actual": "HTTP 200, titles=['Algebra Notes', 'Chemistry Lab Safety', \"O'Brien Reading List\"]",
+            "exploit_succeeded": null,
+            "evidence": {
+              "request": {
+                "method": "GET",
+                "path": "/search",
+                "params": {
+                  "q": ""
+                },
+                "actor": "anonymous"
+              },
+              "response": {
+                "status_code": 200,
+                "body_excerpt": "[{\"id\":3,\"title\":\"Algebra Notes\"},{\"id\":4,\"title\":\"Chemistry Lab Safety\"},{\"id\":5,\"title\":\"O'Brien Reading List\"}]\n"
+              }
+            },
+            "privilege_map": null
+          },
+          {
+            "test_id": "sqli.search_with_apostrophe",
+            "scenario": "sqli",
+            "category": "regression",
+            "name": "Search containing an apostrophe works",
+            "description": "Legitimate input with a quote (O'Brien) must be searchable, not crash the query.",
+            "expected": "HTTP 200 and results include \"O'Brien Reading List\"",
+            "status": "failed",
+            "actual": "HTTP 500, no result list",
+            "exploit_succeeded": null,
+            "evidence": {
+              "request": {
+                "method": "GET",
+                "path": "/search",
+                "params": {
+                  "q": "O'Brien"
+                },
+                "actor": "anonymous"
+              },
+              "response": {
+                "status_code": 500,
+                "body_excerpt": "<!doctype html>\n<html lang=en>\n<title>500 Internal Server Error</title>\n<h1>Internal Server Error</h1>\n<p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.</p>\n"
+              }
+            },
+            "privilege_map": null
+          }
+        ]
+      }
+    },
+    "after_patch": {
+      "phase": "after_patch",
+      "scenario": "sqli",
+      "app_dir": "C:\\Users\\LENOVO\\Downloads\\patcher-main\\patcher-main\\fixtures\\variants\\patched_reference",
+      "started_at": "2026-10-30T12:42:27.736528+00:00",
+      "duration_ms": 44,
+      "load_error": null,
+      "exploit_reproduced": false,
+      "security_tests": {
+        "total": 2,
+        "passed": 2,
+        "failed": 0,
+        "errors": 0,
+        "results": [
+          {
+            "test_id": "sqli.tautology_leaks_private_docs",
+            "scenario": "sqli",
+            "category": "security",
+            "name": "Tautology injection ( ' OR 1=1 -- )",
+            "description": "Tries to turn the WHERE clause into 'always true' so private documents are returned.",
+            "expected": "No private documents returned; HTTP 200 or 400",
+            "status": "passed",
+            "actual": "Payload treated as text; HTTP 200, no private documents returned",
+            "exploit_succeeded": false,
+            "evidence": {
+              "request": {
+                "method": "GET",
+                "path": "/search",
+                "params": {
+                  "q": "' OR 1=1 --"
+                },
+                "actor": "anonymous"
+              },
+              "response": {
+                "status_code": 200,
+                "body_excerpt": "[]\n"
+              }
+            },
+            "privilege_map": null
+          },
+          {
+            "test_id": "sqli.union_leaks_user_tokens",
+            "scenario": "sqli",
+            "category": "security",
+            "name": "UNION injection reading the users table",
+            "description": "Tries to append a UNION SELECT that returns synthetic user API tokens.",
+            "expected": "No user tokens returned; HTTP 200 or 400",
+            "status": "passed",
+            "actual": "Payload treated as text; HTTP 200, no user data returned",
+            "exploit_succeeded": false,
+            "evidence": {
+              "request": {
+                "method": "GET",
+                "path": "/search",
+                "params": {
+                  "q": "' UNION SELECT id, api_token FROM users --"
+                },
+                "actor": "anonymous"
+              },
+              "response": {
+                "status_code": 200,
+                "body_excerpt": "[]\n"
+              }
+            },
+            "privilege_map": null
+          }
+        ]
+      },
+      "regression_tests": {
+        "total": 3,
+        "passed": 3,
+        "failed": 0,
+        "errors": 0,
+        "results": [
+          {
+            "test_id": "sqli.search_finds_public_doc",
+            "scenario": "sqli",
+            "category": "regression",
+            "name": "Normal search finds a public document",
+            "description": "Searching 'Algebra' must return the public 'Algebra Notes' document.",
+            "expected": "HTTP 200 and results include 'Algebra Notes'",
+            "status": "passed",
+            "actual": "HTTP 200, titles=['Algebra Notes']",
+            "exploit_succeeded": null,
+            "evidence": {
+              "request": {
+                "method": "GET",
+                "path": "/search",
+                "params": {
+                  "q": "Algebra"
+                },
+                "actor": "anonymous"
+              },
+              "response": {
+                "status_code": 200,
+                "body_excerpt": "[{\"id\":3,\"title\":\"Algebra Notes\"}]\n"
+              }
+            },
+            "privilege_map": null
+          },
+          {
+            "test_id": "sqli.empty_search_lists_public_docs",
+            "scenario": "sqli",
+            "category": "regression",
+            "name": "Empty search lists every public document",
+            "description": "An empty query must list exactly the public documents and nothing private.",
+            "expected": "HTTP 200 and titles == ['Algebra Notes', 'Chemistry Lab Safety', \"O'Brien Reading List\"]",
+            "status": "passed",
+            "actual": "HTTP 200, titles=['Algebra Notes', 'Chemistry Lab Safety', \"O'Brien Reading List\"]",
+            "exploit_succeeded": null,
+            "evidence": {
+              "request": {
+                "method": "GET",
+                "path": "/search",
+                "params": {
+                  "q": ""
+                },
+                "actor": "anonymous"
+              },
+              "response": {
+                "status_code": 200,
+                "body_excerpt": "[{\"id\":3,\"title\":\"Algebra Notes\"},{\"id\":4,\"title\":\"Chemistry Lab Safety\"},{\"id\":5,\"title\":\"O'Brien Reading List\"}]\n"
+              }
+            },
+            "privilege_map": null
+          },
+          {
+            "test_id": "sqli.search_with_apostrophe",
+            "scenario": "sqli",
+            "category": "regression",
+            "name": "Search containing an apostrophe works",
+            "description": "Legitimate input with a quote (O'Brien) must be searchable, not crash the query.",
+            "expected": "HTTP 200 and results include \"O'Brien Reading List\"",
+            "status": "passed",
+            "actual": "HTTP 200, titles=[\"O'Brien Reading List\"]",
+            "exploit_succeeded": null,
+            "evidence": {
+              "request": {
+                "method": "GET",
+                "path": "/search",
+                "params": {
+                  "q": "O'Brien"
+                },
+                "actor": "anonymous"
+              },
+              "response": {
+                "status_code": 200,
+                "body_excerpt": "[{\"id\":5,\"title\":\"O'Brien Reading List\"}]\n"
+              }
+            },
+            "privilege_map": null
+          }
+        ]
+      }
+    }
+  },
+  "verdict": {
+    "status": "VERIFIED",
+    "reasons": [
+      "Original exploit reproduced before the patch",
+      "All 2 security tests pass after the patch",
+      "All 3 regression tests pass after the patch"
+    ],
+    "original_vulnerability_reproduced": true,
+    "exploit_blocked_after_patch": true,
+    "regressions_pass_after_patch": true
+  }
+}
