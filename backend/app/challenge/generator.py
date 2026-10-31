@@ -83,3 +83,4 @@ IMPORTANT RULES:
 
     # Fallback to cached batch
     return get_cached_candidates(vuln_type)[:count], "cached_fallback"
+

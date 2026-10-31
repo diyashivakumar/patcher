@@ -9,6 +9,7 @@ import {
   FlaskConical,
   FolderGit2,
   Gavel,
+  Github,
   LayoutDashboard,
   Menu,
   ScanSearch,
@@ -238,8 +239,12 @@ export function AppLayout() {
               target="_blank"
               rel="noreferrer"
               aria-label="Open GitHub repository"
+              className="github-topbar-link"
+              title="View repository on GitHub"
             >
-              <ArrowUpRight size={17} />
+              <Github size={13} />
+              <span>GitHub</span>
+              <ArrowUpRight size={12} />
             </a>
           </div>
         </header>

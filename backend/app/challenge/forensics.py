@@ -55,3 +55,4 @@ def scan_response_forensics(response_bodies: list[str]) -> ForensicsEvidence:
         inspected_responses=inspected,
         clean_responses=clean,
     )
+

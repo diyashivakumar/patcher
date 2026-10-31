@@ -188,3 +188,4 @@ def get_cached_candidates(vuln_type: str) -> list[dict]:
     if vuln_type == "sqli":
         return list(SQLI_CACHED_CANDIDATES)
     return list(IDOR_CACHED_CANDIDATES)
+
