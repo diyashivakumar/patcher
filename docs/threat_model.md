@@ -33,7 +33,7 @@ Scope: the PatchProof platform itself (frontend, backend, runner), run locally b
 | Patch apply | Overwriting changed code | Applies only if the exact original lines are present; atomic write; per-patch backup; explicit `approved: true` + approver name; audit log |
 | Verification runner | Hang / resource abuse | Separate subprocess, `VERIFICATION_TIMEOUT_SECONDS` timeout, CPU and memory rlimits on POSIX (`verification/adapter.py`) |
 | | Secret exposure to tested code | The subprocess gets a minimal env (PATH, temp dirs, Windows system vars) with no `DATABASE_URL` |
-| | Network exploitation of real systems | Runner blocks outbound sockets; requests use Flask's in-process test client; only local fixture copies are targeted |
+| | Network exploitation of real systems | Runner blocks outbound `connect`/`connect_ex`/`sendto`/`sendmsg`/`create_connection` and DNS lookups (QA-verified); requests use Flask's in-process test client; only local fixture copies are targeted |
 | | Tampered or forged results | Backend validates the JSON schema and counts; any anomaly gives `ERROR` + `FAILED`, and a patch is never marked verified on error |
 | | Damage to stored project | Runner receives temp **copies** of `original/` and `source/` |
 | Fixture data | Real personal data leakage | Seed data is fully synthetic; a fresh SQLite DB is created per phase and deleted |

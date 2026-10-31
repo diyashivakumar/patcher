@@ -36,7 +36,19 @@ def dashboard_summary(db: Session = Depends(get_db)):
         .where(VerificationRun.kind == "proof_of_fix").group_by(VerificationRun.verdict)
     ).all())
     recent = db.scalars(select(Scan).order_by(Scan.created_at.desc()).limit(8)).all()
+
+    # "Open" = in each project's latest scan AND without a patch the testing runner VERIFIED.
+    # (QA: counting latest-scan findings alone still showed fixed findings as open.)
+    newest = select(Scan.project_id, func.max(Scan.created_at).label("newest")).group_by(Scan.project_id).subquery()
+    latest_scan_ids = select(Scan.id).join(
+        newest, (Scan.project_id == newest.c.project_id) & (Scan.created_at == newest.c.newest))
+    verified = select(Patch.id).where(Patch.finding_id == Finding.id, Patch.status == "VERIFIED").exists()
+    open_by_sev = dict(db.execute(
+        select(Finding.severity, func.count()).where(Finding.scan_id.in_(latest_scan_ids), ~verified)
+        .group_by(Finding.severity)).all())
     return {
+        "open_findings": sum(open_by_sev.values()),
+        "open_findings_by_severity": {s: open_by_sev.get(s, 0) for s in ("CRITICAL", "HIGH", "MEDIUM", "LOW")},
         "total_projects": count(select(func.count()).select_from(Project)),
         "total_scans": count(select(func.count()).select_from(Scan)),
         "total_findings": count(select(func.count()).select_from(Finding)),

@@ -27,7 +27,8 @@ INSERT INTO users (id, username, role, api_token) VALUES
     (1, 'alice',     'student', 'tok-alice-SYNTHETIC'),
     (2, 'bob',       'student', 'tok-bob-SYNTHETIC'),
     (3, 'ms_rivera', 'teacher', 'tok-rivera-SYNTHETIC'),
-    (4, 'mr_okafor', 'teacher', 'tok-okafor-SYNTHETIC');
+    (4, 'mr_okafor', 'teacher', 'tok-okafor-SYNTHETIC'),
+    (5, 'carol',     'student', 'tok-carol-SYNTHETIC');
 
 -- ms_rivera teaches alice only. mr_okafor teaches nobody in this dataset.
 INSERT INTO teacher_students (teacher_id, student_id) VALUES (3, 1);
@@ -38,3 +39,12 @@ INSERT INTO documents (id, owner_id, title, body, is_public) VALUES
     (3, 3, 'Algebra Notes',            'Public algebra notes for all students',          1),
     (4, 3, 'Chemistry Lab Safety',     'Public lab safety rules',                        1),
     (5, 4, 'O''Brien Reading List',    'Public reading list (title contains a quote)',   1);
+
+-- Data Exposure Forensics canary records (testing/canaries.py is the registry).
+-- Every field carries its own marker, so response inspection can prove WHICH fields
+-- of WHICH record were returned. Fabricated values only. All private (is_public = 0),
+-- so they never appear in legitimate public searches.
+INSERT INTO documents (id, owner_id, title, body, is_public) VALUES
+    (101, 1, 'Counselling Record [CANARY-STUDENT-A-101:TITLE]', 'Fabricated counselling notes [CANARY-STUDENT-A-101:BODY]', 0),
+    (202, 2, 'Counselling Record [CANARY-STUDENT-B-202:TITLE]', 'Fabricated counselling notes [CANARY-STUDENT-B-202:BODY]', 0),
+    (303, 5, 'Counselling Record [CANARY-STUDENT-C-303:TITLE]', 'Fabricated counselling notes [CANARY-STUDENT-C-303:BODY]', 0);

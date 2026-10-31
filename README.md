@@ -54,6 +54,8 @@ PatchProof treats a fix as a hypothesis. It must (1) reproduce the original vuln
 | **Over-restrictive patch rejection** | A deliberately bad "deny everyone" patch blocks the attack but breaks legitimate users. PatchProof rejects it, even though a static re-scan considers it fine. |
 | **Regression testing** | Checks normal behaviour: searches still work (including names with apostrophes), owners can read their documents, teachers can read their students' documents. |
 | **Security reports** | JSON and printable HTML verification reports with all evidence and known limitations. |
+| **Exploit Variant Gauntlet** | *One exploit is not enough.* Every Proof-of-Fix also replays validated variations of the attack: case, spacing, SQL comments, URL encoding, injection position and UNION for SQLi; many actor/record combinations for IDOR. Each runs on both the original and the patched app. A variant that doesn't reproduce on the original is marked **invalid** and never counted as a block. A variant that still works after the patch is a **bypass**: the patch is rejected and the case is saved as a regression test for every future run. |
+| **Data Exposure Forensics** | *Show exactly what got exposed.* Synthetic canary records (DOC-101/202/303) carry a marker in every field. PatchProof inspects each actual response for those markers and builds an **exposure ledger**: which actor saw which record and which fields, before and after the patch. Exposure is never inferred from the HTTP status alone. |
 | **Optional Ollama assistance** | A local AI can write a friendlier explanation of a finding. It is advisory only and the app works fully without it. |
 
 ## D. How the complete system works
@@ -290,6 +292,14 @@ Start the backend and the frontend, then open <http://localhost:5173>.
 
 Tip: **New fresh demo project** in the lab gives you a clean, unpatched copy at any time.
 
+**Gauntlet + Forensics demo (about 3 minutes, on a fresh demo project):**
+1. In the Lab, choose SQL Injection, run the exploit, then scan.
+2. Pick **Naive blocklist (deliberately bypassable demo)**, approve it, then **Run Proof-of-Fix**. Expected result: **FAILED**. The summary card shows the original payload *blocked* but 5 variants *bypassing* the patch (case, whitespace, comment, position, UNION). Canary records exposed go from 3 to 3.
+3. Click **Gauntlet** for the surviving-bypass panel (exact input, expected vs actual, the leaked records) and the matrix. Expand any row for evidence. The bypasses are now listed under **Preserved regression cases**.
+4. Click **Exposure ledger** to see which actor got which record and fields, and how the UNION variant leaked `body` while the tautologies leaked `title`.
+5. Roll back, apply the **Parameterised query**, and replay. Result: **VERIFIED**. The 5 saved bypasses are replayed automatically and now *blocked*; 0 records exposed after the patch.
+6. Switch to IDOR. The deny-all patch blocks all 9 attack variants but breaks every legitimate-use variant, so it stays **FAILED**. The ownership check is **VERIFIED**, and in **Exposure Forensics** DOC-202 goes from exposed to Alice, Carol and Ms Rivera to not exposed, while each owner keeps access.
+
 ## Q. Security limitations
 
 - **Two vulnerability classes only:** SQL injection (CWE-89) and IDOR (CWE-639).
@@ -297,6 +307,8 @@ Tip: **New fresh demo project** in the lab gives you a clean, unpatched copy at 
 - **Static analysis has blind spots.** It doesn't follow data across functions or files, ORMs, or custom middleware. *No findings does not mean secure.*
 - **Dynamic verification runs only on the bundled fixture**, locally, on isolated copies with synthetic data. Uploaded code is never executed.
 - **Exploit tests are specific payloads.** "Blocked" means these attacks are blocked, not every possible variant.
+- **The Gauntlet is a fixed, validated variant set**, not a fuzzer. Surviving it does not prove resistance to every payload.
+- **Forensics covers only the seeded synthetic canary records** and what actual responses returned. It is not a full database-exposure analysis.
 - **AI is not authoritative.** It plays no part in detection, patching or verdicts. Its explanations come from a small local model (`gemma4:e2b`) and can be wrong, so always compare them with the scanner's evidence.
 - **No authentication on the API.** It is a local demo tool, so don't expose it to a network.
 - This produces a **verification report, not a security certification.** PatchProof does not claim universal detection or automated repair.

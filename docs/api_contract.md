@@ -42,9 +42,10 @@
 ```
 
 ### `GET /dashboard/summary` → 200
-Real database counts only.
+Real database counts only. `open_findings` / `open_findings_by_severity` count findings in each project's **latest** scan that have **no VERIFIED patch**.
 ```json
 {
+  "open_findings": 0, "open_findings_by_severity": { "CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0 },
   "total_projects": 1, "total_scans": 1, "total_findings": 2,
   "findings_by_severity": { "CRITICAL": 1, "HIGH": 1, "MEDIUM": 0, "LOW": 0 },
   "patches_generated": 3, "patches_verified": 2, "patches_rejected": 0,
@@ -259,3 +260,92 @@ Newest first, at most 100. Same shape as above without `patch_status` and `test_
 ### `GET /reports/{report_id}?format=json|html` → 200
 `json` (default) returns the project, scan, finding (with severity rationale and evidence), patch (rationale, diff, approver), verification (verdict, reasons, all executed tests with evidence) and `known_limitations`.
 `html` returns a self-contained printable page served with `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'`.
+
+---
+
+## Exploit Variant Gauntlet + Data Exposure Forensics (additive)
+
+There is no separate "run gauntlet" endpoint. The Gauntlet and Forensics run **inside** every verification:
+- `POST /verification/run` with `patch_id` runs the Proof-of-Fix, Gauntlet and Forensics together.
+- With `project_id` + `scenario` (baseline), it runs Forensics for the original app only.
+
+### `GET /verification/{run_id}`: two new nullable fields
+```json
+{
+  "gauntlet": {
+    "counts": { "blocked": 2, "bypass": 5, "works": 1, "regression_failed": 1, "inconclusive": 0, "invalid": 1 },
+    "valid_attack_variants": 7, "bypasses": ["sqli.gv.whitespace", "…"], "requires_review": true,
+    "cases": [ { "variant_id": "sqli.gv.case", "scenario": "sqli", "kind": "attack", "variation": "Case variation",
+                 "input": { "actor": "anonymous", "method": "GET", "path": "/search", "params": { "q": "' oR 1=1 --" } },
+                 "status": "bypass", "reason": "…", "regression_case_id": null, "source": "builtin", "fingerprint": "…",
+                 "before": { "status_code": 200, "exploited": true, "exposure_outcome": "multiple_records_exposed", "records": [ … ] },
+                 "after":  { "status_code": 200, "exploited": true, "exposure_outcome": "multiple_records_exposed", "records": [ … ] } } ]
+  },
+  "forensics": {
+    "canary_records": [ { "record_id": "DOC-202", "owner": "bob", "marker": "CANARY-STUDENT-B-202", "fields": [ … ] } ],
+    "phases": { "before_patch": { "unauthorized_records_exposed": ["DOC-202"], "protected_fields_exposed": ["DOC-202.body"],
+                                  "legitimate_records_accessible": ["DOC-101"], "exposure_events": 9,
+                                  "ledger": [ { "verification_run_id": "…", "actor": "alice", "record_id": "DOC-202", "record_owner": "bob",
+                                                "exposed_fields": ["body", "title"], "canary_match": ["CANARY-STUDENT-B-202", "…"],
+                                                "exposure_status": "protected_record_exposed", "evidence_ref": "before_patch/idor.gv.a_reads_b",
+                                                "request": "GET /documents/202", "status_code": 200, "authorized": false } ] },
+                "after_patch": { "…": "…" } },
+    "comparison": { "records_no_longer_exposed": [], "records_still_exposed": [], "fields_no_longer_exposed": [],
+                    "fields_still_exposed": [], "legitimate_access_kept": [], "legitimate_access_lost": [] }
+  }
+}
+```
+Both are `null` for runs recorded before this feature, and `gauntlet` is `null` for baseline runs. Full field definitions: [testing_contract.md](testing_contract.md#schema-11-exploit-variant-gauntlet--data-exposure-forensics). The verdict still comes only from the testing runner.
+
+### `GET /regression-cases?scenario=sqli|idor` → 200
+Confirmed bypasses, saved automatically after a Proof-of-Fix run reports one. They are replayed (re-validated by the runner) on every later verification of the same fixture and scenario.
+```json
+[ { "id": "…", "fixture_name": "student_portal", "scenario": "sqli", "fingerprint": "…", "kind": "attack",
+    "variation": "Bypass of naive_blocklist_demo: Case variation", "input": { "…": "…" }, "check": null,
+    "source_variant_id": "sqli.gv.case", "source_run_id": "…", "source_patch_id": "…",
+    "original_outcome": { "…": "…" }, "patched_outcome": { "…": "…" }, "times_seen": 1, "last_seen_run_id": "…",
+    "created_at": "…", "updated_at": "…" } ]
+```
+
+### Patch strategies
+`sqli` now also accepts `naive_blocklist_demo`. It is a **demo-only** patch that rejects the exact payload `' OR 1=1` and nothing else, so the Gauntlet can be shown discovering bypasses. Like `deny_all_demo`, it is expected to be REJECTED.
+
+### Reports
+`GET /reports/{id}` adds `gauntlet` (counts and per-case summary) and `forensics` (phases, ledger, comparison). The HTML report adds "Exploit Variant Gauntlet" and "Data Exposure Forensics" sections. No response bodies are included.
+
+### Database (migration `0002_gauntlet_forensics`, applied to Neon)
+- `verification_runs`: + `gauntlet` JSONB, + `forensics` JSONB (both nullable).
+- New table `regression_cases`, unique on `(fixture_name, scenario, fingerprint)`.
+
+---
+
+## Kill-chain impact (challenge; additive)
+
+### `POST /api/challenge/chain-impact` → 201
+Body (optional): `{ "project_id": "<fixture project uuid>" }` — omitted or `{}` uses the bundled `student_portal` fixture.
+
+Runs the composed `chain` scenario against four copies built with the **existing** patch generator: original, SQLi-patched-only, IDOR-patched-only, both-patched. Each copy runs through the same runner subprocess sandbox as Proof-of-Fix. Synthetic data only; no verdict is produced and the Proof-of-Fix flow is untouched.
+
+```jsonc
+{
+  "scenario": "chain", "total_steps": 3,
+  "matrix": [ {
+    "copy_id": "original", "label": "No fix", "applied_fixes": [],
+    "steps_reached": 3, "reached_final": true, "chain_succeeded": true,
+    "stolen": ["api_token:alice", …], "final_records": ["DOC-202","DOC-303"],
+    "steps": [ { "step_id", "name", "reached", "succeeded", "stolen", "canary_ids", "actor", "status_code", "actual" } ],
+    "ledger": [ /* forensics rows; no response bodies */ ],
+    "breach_bill": {
+      "records_exposed": 2, "fields_exposed": 4, "credentials_stolen": 5, "owners_affected": ["bob","carol"],
+      "categories": { "credentials": {…}, "identity": {…}, "private_content": {…} },
+      "dpdp_references": [ { "provision", "statutory_maximum_inr", "statutory_maximum_label": "₹250 crore",
+                            "caveat": "maximum statutory penalty — illustrative, not legal advice" } ],
+      "penalty_caveat": "maximum statutory penalty — illustrative, not legal advice"
+    }
+  } /* + sqli_patched, idor_patched, both_patched */ ],
+  "best_single_fix": { "copy_id": "sqli_patched", "label": "SQLi fix only", "steps_reached": 1, "records_exposed": 0 },
+  "canary_records": "All records, tokens and penalties shown are synthetic and illustrative."
+}
+```
+Errors: 404 (unknown `project_id`), 409 `chain_impact_not_possible` (non-fixture project), 502 `runner_error`.
+Every rupee figure is a statutory **maximum** labelled illustrative — never a predicted or actual fine.

@@ -20,11 +20,11 @@ class TestCase:
 
 
 def get_tests(scenario):
-    from testing.scenarios import idor, sqli
+    from testing.scenarios import chain, idor, sqli
 
-    registry = {"sqli": sqli.TESTS, "idor": idor.TESTS}
-    if scenario == "all":
+    registry = {"sqli": sqli.TESTS, "idor": idor.TESTS, "chain": chain.TESTS}
+    if scenario == "all":  # "all" stays sqli+idor; the composed chain is its own scenario
         return registry["sqli"] + registry["idor"]
     if scenario not in registry:
-        raise ValueError(f"Unknown scenario '{scenario}'. Use one of: sqli, idor, all")
+        raise ValueError(f"Unknown scenario '{scenario}'. Use one of: sqli, idor, chain, all")
     return registry[scenario]

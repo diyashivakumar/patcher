@@ -27,6 +27,7 @@ ACTORS = {
     "bob": "tok-bob-SYNTHETIC",            # student, owns doc 2 (private)
     "ms_rivera": "tok-rivera-SYNTHETIC",   # teacher assigned to alice
     "mr_okafor": "tok-okafor-SYNTHETIC",   # teacher with no assigned students
+    "carol": "tok-carol-SYNTHETIC",        # student C, owns canary DOC-303 only
 }
 
 
@@ -38,7 +39,12 @@ _network_blocked = False
 
 
 def block_network():
-    """Refuse every outbound IP connection made from this process."""
+    """Refuse every outbound IP connection, datagram and DNS lookup made from this process.
+
+    QA finding: connect() alone was not enough -- connect_ex() and UDP sendto() still reached the
+    network. All IP-level entry points on socket objects plus name resolution are now guarded.
+    This is an in-process guard for trusted fixture code, not an OS sandbox.
+    """
     global _network_blocked
     if _network_blocked:
         return
@@ -46,14 +52,23 @@ def block_network():
     def _deny(*_args, **_kwargs):
         raise NetworkBlockedError("Network access is disabled inside the PatchProof test harness")
 
-    original_connect = socket.socket.connect
+    ip_families = (socket.AF_INET, socket.AF_INET6)
 
-    def _guarded_connect(self, address):
-        if self.family in (socket.AF_INET, socket.AF_INET6):
-            _deny()
-        return original_connect(self, address)
+    def _guard(name):
+        original = getattr(socket.socket, name)
 
-    socket.socket.connect = _guarded_connect
+        def guarded(self, *args, **kwargs):
+            if self.family in ip_families:
+                _deny()
+            return original(self, *args, **kwargs)
+        setattr(socket.socket, name, guarded)
+
+    for name in ("connect", "connect_ex", "sendto", "sendmsg"):
+        if hasattr(socket.socket, name):
+            _guard(name)
+    socket.getaddrinfo = _deny
+    socket.gethostbyname = _deny
+    socket.gethostbyname_ex = _deny
     socket.create_connection = _deny
     _network_blocked = True
 

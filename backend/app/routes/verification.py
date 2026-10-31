@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.errors import ApiError, not_found
-from app.models import Patch, Project, VerificationRun
-from app.schemas.verification import VerificationRunCreate, VerificationRunDetail, VerificationRunOut
+from app.models import Patch, Project, RegressionCase, VerificationRun
+from app.schemas.verification import RegressionCaseOut, VerificationRunCreate, VerificationRunDetail, VerificationRunOut
 from app.serializers import run_out
 from app.verification import engine
 
@@ -54,3 +54,12 @@ def get_run(run_id: uuid.UUID, db: Session = Depends(get_db)):
     if not run:
         raise not_found("Verification run")
     return run_out(run)
+
+
+@router.get("/regression-cases", response_model=list[RegressionCaseOut], tags=["gauntlet"])
+def list_regression_cases(scenario: str | None = None, db: Session = Depends(get_db)):
+    """Confirmed Gauntlet bypasses preserved as reusable tests (replayed on every later verification)."""
+    stmt = select(RegressionCase).order_by(RegressionCase.created_at.desc())
+    if scenario:
+        stmt = stmt.where(RegressionCase.scenario == scenario)
+    return [RegressionCaseOut.model_validate(c) for c in db.scalars(stmt).all()]

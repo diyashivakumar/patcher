@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.common import ORMModel
 
@@ -14,6 +14,15 @@ class PatchGenerate(BaseModel):
 class PatchApply(BaseModel):
     approved: bool = Field(description="Must be true: explicit human approval")
     approved_by: str = Field(min_length=1, max_length=100)
+
+    @field_validator("approved_by")
+    @classmethod
+    def _named_approver(cls, v: str) -> str:
+        # QA finding: "   " used to pass and was written to the audit log as the approver.
+        v = v.strip()
+        if not v:
+            raise ValueError("approved_by must name a person")
+        return v
 
 
 class PatchRollback(BaseModel):

@@ -96,6 +96,6 @@ def test_cli_outputs_contract_json(tmp_path):
     )
     assert proc.returncode == 0, proc.stderr
     data = json.loads(out.read_text())
-    assert data["schema_version"] == "1.0"
+    assert data["schema_version"] == "1.1"
     assert set(data["phases"]) == {"before_patch", "after_patch"}
     assert data["verdict"]["status"] == "VERIFIED"

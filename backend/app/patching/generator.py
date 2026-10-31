@@ -5,6 +5,8 @@ Strategies
   idor  ownership_check      call the module's existing access-check helper and abort(403) on failure
   idor  deny_all_demo        DEMO ONLY: deliberately over-restrictive patch that denies every request.
                              It exists so the Proof-of-Fix engine can be shown rejecting it.
+  sqli  naive_blocklist_demo DEMO ONLY: rejects the exact known payload and nothing else. It exists so the
+                             Exploit Variant Gauntlet can be shown discovering surviving bypasses.
 
 A patch is a contiguous block of lines [line_start, line_end] in one file that is
 replaced by new lines. Nothing is written to disk here; see applier.py.
@@ -19,7 +21,7 @@ from app.scanner.idor import CURRENT_USER, authz_helpers
 from app.scanner.sqli import EXEC_METHODS
 
 STRATEGIES = {
-    "sqli": ["parameterized_query"],
+    "sqli": ["parameterized_query", "naive_blocklist_demo"],
     "idor": ["ownership_check", "deny_all_demo"],
 }
 DEFAULT_STRATEGY = {"sqli": "parameterized_query", "idor": "ownership_check"}
@@ -50,6 +52,8 @@ def generate_patch(vuln_type, evidence, file_text, file_path, strategy=None):
     lines = file_text.splitlines(keepends=True)
     if strategy == "parameterized_query":
         start, end, new_block, rationale = _sqli_parameterize(tree, lines, evidence)
+    elif strategy == "naive_blocklist_demo":
+        start, end, new_block, rationale = _sqli_naive_blocklist(tree, lines, evidence)
     else:
         start, end, new_block, rationale = _idor_insert_check(tree, lines, evidence, deny_all=(strategy == "deny_all_demo"))
 
@@ -224,6 +228,31 @@ def _sqli_parameterize(tree, lines, evidence):
         "behaviour is unchanged."
     )
     return start, end, block, rationale
+
+
+def _sqli_naive_blocklist(tree, lines, evidence):
+    """DEMO ONLY: guard against the single known payload, leaving the f-string SQL in place."""
+    if not _module_defines(tree, "abort"):
+        raise PatchNotSupported("flask.abort is not imported in this module")
+    inputs = [i for i in evidence.get("interpolated_inputs", []) if i.get("user_controlled")]
+    if not inputs:
+        raise PatchNotSupported("No user-controlled input was traced into this query")
+    var = inputs[0]["name"]
+    line_no = evidence["query_line"]
+    target = lines[line_no - 1]
+    indent = target[: len(target) - len(target.lstrip())]
+    block = [
+        f"{indent}if \"' OR 1=1\" in {var}:  # DEMO ONLY: naive blocklist - rejects the exact known payload\n",
+        f"{indent}    abort(400)\n",
+        target,
+    ]
+    rationale = (
+        "DEMONSTRATION PATCH. This rejects requests containing the exact payload ' OR 1=1 and leaves the "
+        "string-built SQL untouched. It stops the original exploit but not its variations (case, spacing, "
+        "comments, UNION, a different injection position). The Exploit Variant Gauntlet should discover the "
+        "surviving bypasses and the Proof-of-Fix verdict should reject it."
+    )
+    return line_no, line_no, block, rationale
 
 
 # ---------------------------------------------------------------- IDOR

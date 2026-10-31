@@ -60,3 +60,27 @@ class VerificationRunOut(ORMModel):
 class VerificationRunDetail(VerificationRunOut):
     patch_status: str | None = None
     test_results: list[TestResultOut] = []
+    # Runner schema 1.1; null for runs recorded before the Gauntlet existed. Shapes: docs/testing_contract.md
+    gauntlet: dict | None = None
+    forensics: dict | None = None
+
+
+class RegressionCaseOut(ORMModel):
+    id: uuid.UUID
+    fixture_name: str
+    scenario: str
+    fingerprint: str
+    kind: str
+    variation: str
+    description: str
+    input: dict
+    check: dict | None = None  # oracle replayed with the case (e.g. injection probe)
+    source_variant_id: str
+    source_run_id: uuid.UUID | None
+    source_patch_id: uuid.UUID | None
+    original_outcome: dict
+    patched_outcome: dict
+    times_seen: int
+    last_seen_run_id: uuid.UUID | None
+    created_at: datetime
+    updated_at: datetime

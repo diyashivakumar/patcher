@@ -17,6 +17,10 @@ LIMITATIONS = [
     "Regression tests cover the behaviours defined in the PrivilegeMap and search scenarios, not the "
     "complete application.",
     "Any AI text shown in the UI is advisory and played no part in detection, patching or this verdict.",
+    "The Exploit Variant Gauntlet runs a fixed set of validated variants; surviving them does not prove resistance "
+    "to every possible payload. Invalid variants (not reproducible on the original app) are never counted as blocks.",
+    "Data Exposure Forensics detects only the synthetic canary records seeded into the practice app, from markers "
+    "in actual responses. It is not a complete analysis of everything a real database could expose.",
 ]
 
 
@@ -61,8 +65,62 @@ def build_report(run: VerificationRun, project: Project):
             "phase_summaries": run.phase_summaries, "error": run.error, "duration_ms": run.duration_ms,
             "tests": by_phase,
         },
+        "gauntlet": _gauntlet_summary(run.gauntlet),
+        "forensics": _forensics_summary(run.forensics),
         "known_limitations": LIMITATIONS,
     }
+
+
+def _gauntlet_summary(g):
+    if not g:
+        return None
+    return {
+        "counts": g["counts"], "valid_attack_variants": g["valid_attack_variants"], "requires_review": g["requires_review"],
+        "cases": [{"variant_id": c["variant_id"], "kind": c["kind"], "variation": c["variation"], "input": c["input"],
+                   "status": c["status"], "reason": c["reason"], "regression_case_id": c.get("regression_case_id"),
+                   "before_outcome": (c["before"] or {}).get("exposure_outcome"),
+                   "after_outcome": (c["after"] or {}).get("exposure_outcome")} for c in g["cases"]],
+    }
+
+
+def _forensics_summary(f):
+    """Ledger rows carry only record ids, field names and canary markers -- never response bodies."""
+    if not f:
+        return None
+    return {"phases": f.get("phases"), "comparison": f.get("comparison"), "canary_records": f.get("canary_records")}
+
+
+def _gauntlet_html(g):
+    if not g:
+        return "<h2>Exploit Variant Gauntlet</h2><p>Not recorded for this run.</p>"
+    c = g["counts"]
+    rows = "".join(
+        f"<tr class='{_e('failed' if x['status'] in ('bypass', 'regression_failed') else 'passed' if x['status'] in ('blocked', 'works') else '')}'>"
+        f"<td>{_e(x['variation'])}<div class='muted'>{_e(x['variant_id'])}</div></td><td><code>{_e(x['input'])}</code></td>"
+        f"<td>{_e(x['before_outcome'])}</td><td>{_e(x['after_outcome'])}</td><td><b>{_e(x['status'].upper())}</b><div class='muted'>{_e(x['reason'])}</div></td></tr>"
+        for x in g["cases"])
+    return (f"<h2>Exploit Variant Gauntlet</h2><p>{c['blocked']} blocked · {c['bypass']} bypass · {c['works']} legitimate OK · "
+            f"{c['regression_failed']} legitimate broken · {c['invalid']} invalid (not counted) · {c['inconclusive']} inconclusive</p>"
+            "<table><tr><th>Variant</th><th>Input</th><th>Original app</th><th>Patched app</th><th>Result</th></tr>"
+            f"{rows}</table>")
+
+
+def _forensics_html(f):
+    if not f or not f.get("phases"):
+        return "<h2>Data Exposure Forensics</h2><p>Not recorded for this run.</p>"
+    blocks = []
+    for name, ph in f["phases"].items():
+        ledger = "".join(
+            f"<tr class='{'passed' if r['authorized'] else 'failed'}'><td>{_e(r['actor'])}</td><td>{_e(r['record_id'])} ({_e(r['record_owner'])})</td>"
+            f"<td>{_e(', '.join(r['exposed_fields']))}</td><td>{_e(r['exposure_status'])}</td><td class='muted'>{_e(r['evidence_ref'])}</td></tr>"
+            for r in ph.get("ledger", []))
+        blocks.append(
+            f"<h3>{_e(name.replace('_', ' ').title())}</h3><p>Unauthorised records exposed: <b>{_e(', '.join(ph['unauthorized_records_exposed']) or 'none')}</b> · "
+            f"protected fields: {_e(', '.join(ph['protected_fields_exposed']) or 'none')} · legitimately accessible: {_e(', '.join(ph['legitimate_records_accessible']) or 'none')}</p>"
+            f"<table><tr><th>Actor</th><th>Record (owner)</th><th>Fields returned</th><th>Status</th><th>Evidence</th></tr>{ledger or '<tr><td colspan=5>No canary data in any response</td></tr>'}</table>")
+    comp = f.get("comparison") or {}
+    summary = "".join(f"<li>{_e(k.replace('_', ' '))}: {_e(', '.join(v) or 'none')}</li>" for k, v in comp.items())
+    return f"<h2>Data Exposure Forensics</h2><ul>{summary}</ul>{''.join(blocks)}"
 
 
 def _e(value):
@@ -121,6 +179,8 @@ tr.passed td:last-child{{color:#137333}} tr.failed td:last-child,tr.error td:las
 <p>Scenario <code>{_e(v['scenario'])}</code> · run status {_e(v['status'])} · {_e(v['duration_ms'])} ms
 {f"<br>Error: {_e(v['error'])}" if v['error'] else ""}</p>
 {finding_html}{patch_html}
+{_gauntlet_html(report.get("gauntlet"))}
+{_forensics_html(report.get("forensics"))}
 <h2>Executed tests</h2>{phases or "<p>No test results were recorded.</p>"}
 <h2>Known limitations</h2><ul>{limits}</ul>
 </body></html>"""

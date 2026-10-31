@@ -43,7 +43,8 @@ def _own_document_list(client):
     resp, evidence = call(client, "GET", "/documents/mine", actor="alice")
     data = json_or_none(resp)
     ids = sorted(row.get("id") for row in data) if isinstance(data, list) else None
-    passed = resp.status_code == 200 and ids == [1]
+    # alice owns doc 1 and canary DOC-101 (fixtures/seed/student_portal.sql)
+    passed = resp.status_code == 200 and ids == [1, 101]
     return {"passed": passed, "actual": f"HTTP {resp.status_code}, ids={ids}", "evidence": evidence}
 
 
@@ -62,7 +63,7 @@ TESTS = [
         "idor.owner_lists_own_documents", "idor", REGRESSION,
         "alice lists her own documents",
         "GET /documents/mine must still return exactly alice's documents.",
-        "HTTP 200 and ids == [1]",
+        "HTTP 200 and ids == [1, 101]",
         _own_document_list,
     ),
 ]

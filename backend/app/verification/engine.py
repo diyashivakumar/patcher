@@ -7,9 +7,12 @@ uses AI output in this path.
 import shutil
 import tempfile
 import time
+import uuid
 from pathlib import Path
 
-from app.models import Patch, Project, VerificationRun, VerificationTestResult
+from sqlalchemy import select
+
+from app.models import Patch, Project, RegressionCase, VerificationRun, VerificationTestResult
 from app.models.audit_log import record
 from app.models.base import utcnow
 from app.services import storage
@@ -72,16 +75,60 @@ def _store_results(run, raw):
                 position += 1
 
 
+def _saved_cases(db, project, scenario):
+    """Preserved bypasses for this fixture + scenario, in the runner's --extra-variants format."""
+    cases = db.scalars(select(RegressionCase).where(RegressionCase.fixture_name == project.fixture_name,
+                                                    RegressionCase.scenario == scenario)).all()
+    return [{"scenario": c.scenario, "kind": c.kind, "variation": c.variation, "description": c.description,
+             "input": c.input, "check": c.check, "regression_case_id": str(c.id)} for c in cases]
+
+
+def _stamp_forensics(forensics, run_id):
+    """Attach the verification run id to every ledger row (the ledger's 'Verification run ID' field)."""
+    if not forensics:
+        return None
+    for phase in forensics.get("phases", {}).values():
+        for row in phase.get("ledger", []):
+            row["verification_run_id"] = str(run_id)
+    return forensics
+
+
+def _preserve_bypasses(db, run, patch, project):
+    """Save every confirmed bypass as a reusable regression case (deduplicated by request fingerprint)."""
+    saved = []
+    for case in (run.gauntlet or {}).get("cases", []):
+        if case["status"] != "bypass":
+            continue
+        existing = db.scalar(select(RegressionCase).where(
+            RegressionCase.fixture_name == project.fixture_name, RegressionCase.scenario == case["scenario"],
+            RegressionCase.fingerprint == case["fingerprint"]))
+        if existing:
+            existing.times_seen += 1
+            existing.last_seen_run_id = run.id
+            existing.patched_outcome = case["after"]
+            saved.append(existing)
+            continue
+        rc = RegressionCase(
+            fixture_name=project.fixture_name, scenario=case["scenario"], fingerprint=case["fingerprint"],
+            kind=case["kind"], variation=f"Bypass of {patch.strategy}: {case['variation']}"[:200],
+            description=case["reason"][:500], input=case["input"], check=case.get("check"),
+            source_variant_id=case["variant_id"], source_run_id=run.id, source_patch_id=patch.id,
+            original_outcome=case["before"], patched_outcome=case["after"], times_seen=1, last_seen_run_id=run.id)
+        db.add(rc)
+        saved.append(rc)
+    return saved
+
+
 def run_baseline(db, project: Project, scenario: str, actor="system"):
     """Attack Replay step 1: run the exploit + regression tests against the ORIGINAL code only."""
     _require_scenario(project, scenario)
-    run = VerificationRun(project_id=project.id, kind="baseline", scenario=scenario, status="RUNNING",
+    run = VerificationRun(id=uuid.uuid4(), project_id=project.id, kind="baseline", scenario=scenario, status="RUNNING",
                           started_at=utcnow(), verdict_reasons=[], phase_summaries={})
     started = time.perf_counter()
     with tempfile.TemporaryDirectory(prefix="patchproof-baseline-") as tmp:
         app_copy = _copy_tree(storage.original_dir(project.id), Path(tmp) / "original")
         try:
-            raw = adapter.run_baseline(app_copy, scenario)
+            raw = adapter.run_baseline(app_copy, scenario, _saved_cases(db, project, scenario))
         except adapter.RunnerError as exc:
             raw = None
             run.status, run.error = "ERROR", str(exc)
@@ -90,6 +137,7 @@ def run_baseline(db, project: Project, scenario: str, actor="system"):
         run.status = "COMPLETED"
         run.raw_output = raw
         run.phase_summaries = _summaries(raw)
+        run.forensics = _stamp_forensics(raw.get("forensics"), run.id)
         run.original_vulnerability_reproduced = bool(phase["exploit_reproduced"]) and not phase["load_error"]
         run.verdict_reasons = [
             "Original vulnerability reproduced: exploit succeeded against the unpatched code"
@@ -115,14 +163,14 @@ def run_proof_of_fix(db, patch: Patch, project: Project, actor="system"):
     scenario = patch.finding.vuln_type
     _require_scenario(project, scenario)
 
-    run = VerificationRun(project_id=project.id, patch_id=patch.id, kind="proof_of_fix", scenario=scenario,
+    run = VerificationRun(id=uuid.uuid4(), project_id=project.id, patch_id=patch.id, kind="proof_of_fix", scenario=scenario,
                           status="RUNNING", started_at=utcnow(), verdict_reasons=[], phase_summaries={})
     started = time.perf_counter()
     with tempfile.TemporaryDirectory(prefix="patchproof-verify-") as tmp:
         before = _copy_tree(storage.original_dir(project.id), Path(tmp) / "before")
         after = _copy_tree(storage.source_dir(project.id), Path(tmp) / "after")
         try:
-            raw = adapter.run_compare(before, after, scenario)
+            raw = adapter.run_compare(before, after, scenario, _saved_cases(db, project, scenario))
         except adapter.RunnerError as exc:
             raw = None
             run.status, run.error = "ERROR", str(exc)
@@ -139,6 +187,8 @@ def run_proof_of_fix(db, patch: Patch, project: Project, actor="system"):
         run.original_vulnerability_reproduced = verdict.get("original_vulnerability_reproduced")
         run.exploit_blocked_after_patch = verdict.get("exploit_blocked_after_patch")
         run.regressions_pass_after_patch = verdict.get("regressions_pass_after_patch")
+        run.gauntlet = raw.get("gauntlet")
+        run.forensics = _stamp_forensics(raw.get("forensics"), run.id)
         _store_results(run, raw)
         # Accept/reject decision. PARTIALLY_VERIFIED leaves the patch APPLIED for human review.
         if run.verdict == "VERIFIED":
@@ -150,6 +200,8 @@ def run_proof_of_fix(db, patch: Patch, project: Project, actor="system"):
     run.duration_ms = int((time.perf_counter() - started) * 1000)
     db.add(run)
     db.flush()
+    preserved = _preserve_bypasses(db, run, patch, project) if run.gauntlet else []
     record(db, "verification.proof_of_fix", "verification_run", run.id, project.id, actor,
-           patch_id=str(patch.id), scenario=scenario, verdict=run.verdict, status=run.status)
+           patch_id=str(patch.id), scenario=scenario, verdict=run.verdict, status=run.status,
+           bypasses_preserved=len(preserved))
     return run
