@@ -31,6 +31,71 @@
   --text-faint: 96 116 141;   /* #60748D */
 }
 
+/* ----------------------------------------------------------------------------
+   Light theme — intentionally designed (not an inversion). Same cyan identity,
+   deepened for contrast on light surfaces; clean white cards, readable dark text.
+---------------------------------------------------------------------------- */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --brand: 8 145 178;         /* deeper cyan for contrast on white  #0891B2 */
+  --brand-ink: 255 255 255;   /* text on cyan button                       */
+  --blue: 37 99 235;          /* blue-600  */
+  --violet: 124 58 237;       /* violet-600 */
+
+  --ink: 244 247 251;         /* app canvas  #F4F7FB */
+  --ink-2: 255 255 255;       /* secondary bg        */
+  --surface: 255 255 255;     /* elevated surface    */
+  --surface-2: 255 255 255;   /* glass base          */
+  --line: 100 116 139;        /* slate-500 border tint (used low alpha) */
+
+  --verified: 5 150 105;      /* emerald-600 */
+  --breached: 225 29 72;      /* rose-600    */
+  --blocked: 180 83 9;        /* amber-700   */
+  --pending: 37 99 235;       /* blue-600    */
+
+  --text: 15 23 42;           /* slate-900 */
+  --text-dim: 71 85 105;      /* slate-600 */
+  --text-faint: 100 116 139;  /* slate-500 */
+}
+
+:root[data-theme="light"] .glass {
+  background: rgb(var(--surface) / 0.86);
+  border-color: rgb(var(--line) / 0.22);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.6) inset, 0 14px 40px -24px rgb(15 23 42 / 0.28);
+}
+:root[data-theme="light"] .glass-hover:hover {
+  border-color: rgb(var(--brand) / 0.5);
+  box-shadow: 0 14px 44px -22px rgb(15 23 42 / 0.3), 0 0 0 1px rgb(var(--brand) / 0.12);
+}
+
+/* Compatibility shim: many pages use raw Tailwind slate utilities. Under the light
+   theme these would keep dark values, so remap the common ones to theme tokens.
+   Higher specificity ([data-theme] + class) wins over the base utility. */
+:root[data-theme="light"] .text-white,
+:root[data-theme="light"] .text-slate-100,
+:root[data-theme="light"] .text-slate-200 { color: rgb(var(--text)); }
+:root[data-theme="light"] .text-slate-300,
+:root[data-theme="light"] .text-slate-400 { color: rgb(var(--text-dim)); }
+:root[data-theme="light"] .text-slate-500,
+:root[data-theme="light"] .text-slate-600 { color: rgb(var(--text-faint)); }
+:root[data-theme="light"] .text-rose-200,
+:root[data-theme="light"] .text-rose-300 { color: rgb(var(--breached)); }
+:root[data-theme="light"] .text-sky-400 { color: rgb(var(--brand)); }
+
+:root[data-theme="light"] .bg-slate-950,
+:root[data-theme="light"] .bg-slate-900 { background-color: rgb(var(--surface)); }
+:root[data-theme="light"] .bg-slate-800 { background-color: rgb(241 245 249); }
+:root[data-theme="light"] .bg-slate-700\/30,
+:root[data-theme="light"] .bg-slate-700\/40 { background-color: rgb(226 232 240 / 0.6); }
+
+:root[data-theme="light"] .border-slate-700,
+:root[data-theme="light"] .border-slate-800 { border-color: rgb(var(--line) / 0.25); }
+:root[data-theme="light"] .divide-slate-800 > :not([hidden]) ~ :not([hidden]) { border-color: rgb(var(--line) / 0.18); }
+:root[data-theme="light"] .ring-slate-600 { --tw-ring-color: rgb(var(--line) / 0.4); }
+
+:root[data-theme="light"] body { background-color: rgb(var(--ink)); }
+
 body {
   @apply bg-ink text-slate-200 antialiased;
   color: rgb(var(--text));

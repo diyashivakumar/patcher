@@ -1,23 +1,28 @@
+import { lazy } from "react";
 import { Link, Route, Routes } from "react-router-dom";
 import { Empty } from "./components/ui";
 import { AppLayout } from "./layouts/AppLayout";
-import { AttackReplayLab } from "./pages/AttackReplayLab";
-import { Dashboard } from "./pages/Dashboard";
-import { FindingDetail } from "./pages/FindingDetail";
-import { Findings } from "./pages/Findings";
-import { Forensics } from "./pages/Forensics";
-import { Gauntlet } from "./pages/Gauntlet";
-import { GitHubImport } from "./pages/GitHubImport";
-import { KillChain } from "./pages/KillChain";
-import { PortInspector } from "./pages/PortInspector";
-import { PatchReview } from "./pages/PatchReview";
-import { ProjectDetail } from "./pages/ProjectDetail";
-import { Projects } from "./pages/Projects";
-import { Reports } from "./pages/Reports";
-import { Scanner } from "./pages/Scanner";
-import { ScanResults } from "./pages/ScanResults";
-import { VerificationResult } from "./pages/VerificationResult";
-import { WebsiteCheck } from "./pages/WebsiteCheck";
+
+// Route-level code splitting: each page is its own chunk, loaded on first visit.
+// The app shell (AppLayout) stays in the main bundle so navigation feels instant,
+// and a Suspense fallback inside the shell shows a loader only in the content area.
+const Dashboard = lazy(() => import("./pages/Dashboard").then((m) => ({ default: m.Dashboard })));
+const Projects = lazy(() => import("./pages/Projects").then((m) => ({ default: m.Projects })));
+const ProjectDetail = lazy(() => import("./pages/ProjectDetail").then((m) => ({ default: m.ProjectDetail })));
+const GitHubImport = lazy(() => import("./pages/GitHubImport").then((m) => ({ default: m.GitHubImport })));
+const PortInspector = lazy(() => import("./pages/PortInspector").then((m) => ({ default: m.PortInspector })));
+const WebsiteCheck = lazy(() => import("./pages/WebsiteCheck").then((m) => ({ default: m.WebsiteCheck })));
+const Scanner = lazy(() => import("./pages/Scanner").then((m) => ({ default: m.Scanner })));
+const ScanResults = lazy(() => import("./pages/ScanResults").then((m) => ({ default: m.ScanResults })));
+const Findings = lazy(() => import("./pages/Findings").then((m) => ({ default: m.Findings })));
+const FindingDetail = lazy(() => import("./pages/FindingDetail").then((m) => ({ default: m.FindingDetail })));
+const PatchReview = lazy(() => import("./pages/PatchReview").then((m) => ({ default: m.PatchReview })));
+const AttackReplayLab = lazy(() => import("./pages/AttackReplayLab").then((m) => ({ default: m.AttackReplayLab })));
+const Gauntlet = lazy(() => import("./pages/Gauntlet").then((m) => ({ default: m.Gauntlet })));
+const Forensics = lazy(() => import("./pages/Forensics").then((m) => ({ default: m.Forensics })));
+const KillChain = lazy(() => import("./pages/KillChain").then((m) => ({ default: m.KillChain })));
+const VerificationResult = lazy(() => import("./pages/VerificationResult").then((m) => ({ default: m.VerificationResult })));
+const Reports = lazy(() => import("./pages/Reports").then((m) => ({ default: m.Reports })));
 
 export default function App() {
   return (

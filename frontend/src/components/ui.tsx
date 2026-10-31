@@ -1,5 +1,7 @@
-import { AlertTriangle, CheckCircle2, CircleDashed, Loader2, ShieldAlert, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, CheckCircle2, CircleDashed, Loader2, ShieldAlert, XCircle } from "lucide-react";
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { Link } from "react-router-dom";
+import { useT } from "../i18n";
 import type { PatchStatus, Severity, Verdict } from "../types/api";
 
 export function cx(...classes: (string | false | null | undefined)[]) {
@@ -136,10 +138,11 @@ export function TestStatus({ status }: { status: "passed" | "failed" | "error" }
   return <span className="inline-flex items-center gap-1 text-blocked"><AlertTriangle className="h-4 w-4" />Error</span>;
 }
 
-export function Loading({ label = "Loading…" }: { label?: string }) {
+export function Loading({ label }: { label?: string }) {
+  const t = useT();
   return (
     <div className="flex items-center gap-2 py-10 text-sm text-slate-400">
-      <Loader2 className="h-4 w-4 animate-spin" /> {label}
+      <Loader2 className="h-4 w-4 animate-spin" /> {label ?? t("common.loading")}
     </div>
   );
 }
@@ -234,23 +237,35 @@ export function Sparkline({ data, className, stroke = "rgb(var(--brand))" }: { d
   );
 }
 
-export function Stat({ label, value, hint, accent, trend }: {
+export function Stat({ label, value, hint, accent, trend, to, ariaLabel }: {
   label: string; value: ReactNode; hint?: string; accent?: string; trend?: number[];
+  to?: string; ariaLabel?: string;
 }) {
   const numeric = typeof value === "number" ? value : null;
   const counted = useCountUp(numeric ?? 0);
-  return (
-    <div className="group glass glass-hover rise-in rounded-2xl p-4">
+  const body = (
+    <>
       <div className="flex items-start justify-between gap-2">
         <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{label}</div>
-        {trend && trend.length > 1 && <Sparkline data={trend} className="opacity-70 transition-opacity group-hover:opacity-100" />}
+        {to ? <ArrowUpRight className="h-4 w-4 text-slate-600 transition-colors group-hover:text-brand" />
+            : trend && trend.length > 1 ? <Sparkline data={trend} className="opacity-70 transition-opacity group-hover:opacity-100" /> : null}
       </div>
       <div className={cx("mt-2.5 text-[2rem] font-semibold leading-none tabular-nums tracking-tightish", accent ?? "text-white")}>
         {numeric !== null ? counted : value}
       </div>
+      {to && trend && trend.length > 1 && <div className="mt-2"><Sparkline data={trend} className="opacity-70 transition-opacity group-hover:opacity-100" /></div>}
       {hint && <div className="mt-1.5 text-xs text-slate-500">{hint}</div>}
-    </div>
+    </>
   );
+  const base = "group glass glass-hover rise-in rounded-2xl p-4";
+  if (to) {
+    return (
+      <Link to={to} aria-label={ariaLabel ?? label} className={cx(base, "block cursor-pointer")}>
+        {body}
+      </Link>
+    );
+  }
+  return <div className={base}>{body}</div>;
 }
 
 /* ---- Toasts ---- */

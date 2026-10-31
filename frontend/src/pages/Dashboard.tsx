@@ -2,8 +2,10 @@ import { Activity, FlaskConical, FolderPlus, Radar, ScanSearch, ShieldCheck } fr
 import { Link } from "react-router-dom";
 import { Donut, NetworkTopology, TopoLegend, type TopoLink, type TopoNode } from "../components/Charts";
 import { Card, cx, Empty, ErrorBox, fmtDate, Pill, SkeletonRows, SkeletonStats, Stat, strategyLabel, VerdictBadge, vulnLabel } from "../components/ui";
+import { useT } from "../i18n";
 import { useApi } from "../hooks/useApi";
 import { api } from "../services/api";
+import { useStatus } from "../status";
 import type { DashboardSummary, ReportListItem } from "../types/api";
 
 const rgb = (t: string) => `rgb(var(--${t}))`;
@@ -37,11 +39,11 @@ function buildTopology(s: DashboardSummary, runs: ReportListItem[]): { nodes: To
 const QUICK = "inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition";
 
 export function Dashboard() {
+  const t = useT();
   const summary = useApi(() => api.dashboard());
   const projects = useApi(() => api.listProjects());
   const reports = useApi(() => api.listReports());
-  const health = useApi(() => api.health());
-  const ollama = useApi(() => api.ollamaStatus());
+  const { health, ollama } = useStatus();
   const s = summary.data;
   const reloadAll = () => { for (const q of [summary, projects, reports, health, ollama]) void q.reload(); };
 
@@ -63,25 +65,25 @@ export function Dashboard() {
         <div className="relative flex flex-wrap items-end justify-between gap-5">
           <div className="min-w-0">
             <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-brand/30 bg-brand/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">
-              <Radar className="h-3.5 w-3.5" /> Security Command Centre
+              <Radar className="h-3.5 w-3.5" /> {t("dash.commandCentre")}
             </div>
-            <h1 className="text-3xl font-semibold tracking-display text-white text-glow-cyan sm:text-4xl">Find the Flaw. Challenge the Fix. Prove It.</h1>
+            <h1 className="text-3xl font-semibold tracking-display text-white text-glow-cyan sm:text-4xl">{t("dash.heroTitle")}</h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
-              Live view of every project, vulnerability, exploit attempt and Proof-of-Fix verdict. Every number is real backend data — nothing is estimated.
+              {t("dash.heroSubtitle")}
             </p>
             <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
               <Pill className={dbOk ? "border-verified/30 bg-verified/10 text-verified ring-0" : "border-breached/30 bg-breached/10 text-breached ring-0"}>
-                <span className={cx("h-1.5 w-1.5 rounded-full", dbOk ? "bg-verified" : "bg-breached")} /> Database {health.error ? "offline" : health.data?.database ?? "…"}
+                <span className={cx("h-1.5 w-1.5 rounded-full", dbOk ? "bg-verified" : "bg-breached")} /> {t("dash.database")} {health.error ? t("header.offline") : health.data?.database ?? "…"}
               </Pill>
               <Pill className={ollama.data?.model_installed ? "border-verified/30 bg-verified/10 text-verified ring-0" : "border-line/20 bg-surface-2/40 text-slate-400 ring-0"}>
-                <span className={cx("h-1.5 w-1.5 rounded-full", ollama.data?.model_installed ? "bg-verified" : "bg-slate-500")} /> AI assistant {ollama.data?.model_installed ? `ready (${ollama.data.model})` : "optional"}
+                <span className={cx("h-1.5 w-1.5 rounded-full", ollama.data?.model_installed ? "bg-verified" : "bg-slate-500")} /> {t("dash.aiAssistant")} {ollama.data?.model_installed ? `${t("dash.ready")} (${ollama.data.model})` : t("dash.optional")}
               </Pill>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link to="/projects" className={cx(QUICK, "border border-line/20 bg-surface-2/50 text-slate-100 hover:border-brand/40")}><FolderPlus className="h-4 w-4" />New project</Link>
-            <Link to="/scanner" className={cx(QUICK, "border border-line/20 bg-surface-2/50 text-slate-100 hover:border-brand/40")}><ScanSearch className="h-4 w-4" />Start scan</Link>
-            <Link to="/replay" className={cx(QUICK, "bg-brand text-brand-ink shadow-[0_8px_24px_-8px_rgb(var(--brand)/0.7)] hover:brightness-110")}><FlaskConical className="h-4 w-4" />Attack Replay Lab</Link>
+            <Link to="/projects" className={cx(QUICK, "border border-line/20 bg-surface-2/50 text-slate-100 hover:border-brand/40")}><FolderPlus className="h-4 w-4" />{t("dash.newProject")}</Link>
+            <Link to="/scanner" className={cx(QUICK, "border border-line/20 bg-surface-2/50 text-slate-100 hover:border-brand/40")}><ScanSearch className="h-4 w-4" />{t("dash.startScan")}</Link>
+            <Link to="/replay" className={cx(QUICK, "bg-brand text-brand-ink shadow-[0_8px_24px_-8px_rgb(var(--brand)/0.7)] hover:brightness-110")}><FlaskConical className="h-4 w-4" />{t("dash.attackReplayLab")}</Link>
           </div>
         </div>
       </section>
@@ -92,48 +94,48 @@ export function Dashboard() {
       {s && projects.data && (
         <>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:grid-cols-7">
-            <Stat label="Projects" value={s.total_projects} />
-            <Stat label="Scans" value={s.total_scans} />
-            <Stat label="Open vulns" value={open} accent={open ? "text-breached" : undefined} trend={sevTrend} hint="Latest scans, excl. verified" />
-            <Stat label="Critical / High" value={openCritHigh} accent={openCritHigh ? "text-breached" : undefined} />
-            <Stat label="Verified" value={s.patches_verified} accent="text-verified" />
-            <Stat label="Rejected" value={s.patches_rejected} accent={s.patches_rejected ? "text-breached" : undefined} />
-            <Stat label="Proof-of-Fix" value={`${s.verification_runs_by_verdict.VERIFIED}✓ ${s.verification_runs_by_verdict.FAILED}✗`}
-              trend={[s.verification_runs_by_verdict.VERIFIED, s.verification_runs_by_verdict.PARTIALLY_VERIFIED, s.verification_runs_by_verdict.FAILED]} />
+            <Stat label={t("dash.projects")} value={s.total_projects} to="/projects" />
+            <Stat label={t("dash.scans")} value={s.total_scans} to="/scanner" />
+            <Stat label={t("dash.openVulns")} value={open} accent={open ? "text-breached" : undefined} trend={sevTrend} hint={t("dash.latestScansExcl")} to="/findings" />
+            <Stat label={t("dash.criticalHigh")} value={openCritHigh} accent={openCritHigh ? "text-breached" : undefined} to="/findings?severity=CRITICAL,HIGH" />
+            <Stat label={t("dash.verified")} value={s.patches_verified} accent="text-verified" to="/reports?verdict=VERIFIED" />
+            <Stat label={t("dash.rejected")} value={s.patches_rejected} accent={s.patches_rejected ? "text-breached" : undefined} to="/reports?verdict=FAILED" />
+            <Stat label={t("dash.proofOfFix")} value={`${s.verification_runs_by_verdict.VERIFIED}✓ ${s.verification_runs_by_verdict.FAILED}✗`}
+              trend={[s.verification_runs_by_verdict.VERIFIED, s.verification_runs_by_verdict.PARTIALLY_VERIFIED, s.verification_runs_by_verdict.FAILED]} to="/reports" />
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-            <Card title={<span className="inline-flex items-center gap-2"><Radar className="h-4 w-4 text-brand" />Attack network topology</span>} actions={<TopoLegend />}>
+            <Card title={<span className="inline-flex items-center gap-2"><Radar className="h-4 w-4 text-brand" />{t("dash.attackTopology")}</span>} actions={<TopoLegend />}>
               <NetworkTopology {...buildTopology(s, recentRuns)} />
-              <p className="mt-2 text-[11px] text-slate-500">Projects → vulnerabilities → verification outcomes → exposed synthetic records. Click a node to investigate.</p>
+              <p className="mt-2 text-[11px] text-slate-500">{t("dash.topologyCaption")}</p>
             </Card>
             <div className="grid gap-4">
-              <Card title="Severity distribution">
-                <Donut centerTop={String(s.total_findings)} centerSub="total findings"
+              <Card title={t("dash.severityDistribution")}>
+                <Donut centerTop={String(s.total_findings)} centerSub={t("dash.totalFindings")}
                   slices={[
-                    { label: "Critical", value: s.findings_by_severity.CRITICAL, color: rgb("breached") },
-                    { label: "High", value: s.findings_by_severity.HIGH, color: "rgb(255 150 90)" },
-                    { label: "Medium", value: s.findings_by_severity.MEDIUM, color: rgb("blocked") },
-                    { label: "Low", value: s.findings_by_severity.LOW, color: rgb("blue") },
+                    { label: t("dash.severityCritical"), value: s.findings_by_severity.CRITICAL, color: rgb("breached") },
+                    { label: t("dash.severityHigh"), value: s.findings_by_severity.HIGH, color: "rgb(255 150 90)" },
+                    { label: t("dash.severityMedium"), value: s.findings_by_severity.MEDIUM, color: rgb("blocked") },
+                    { label: t("dash.severityLow"), value: s.findings_by_severity.LOW, color: rgb("blue") },
                   ]} />
               </Card>
-              <Card title="Verification outcomes">
-                <Donut centerTop={String(Object.values(s.verification_runs_by_verdict).reduce((a, b) => a + b, 0))} centerSub="proof-of-fix runs"
+              <Card title={t("dash.verificationOutcomes")}>
+                <Donut centerTop={String(Object.values(s.verification_runs_by_verdict).reduce((a, b) => a + b, 0))} centerSub={t("dash.proofOfFixRuns")}
                   slices={[
-                    { label: "Verified", value: s.verification_runs_by_verdict.VERIFIED, color: rgb("verified") },
-                    { label: "Partially", value: s.verification_runs_by_verdict.PARTIALLY_VERIFIED, color: rgb("blocked") },
-                    { label: "Failed", value: s.verification_runs_by_verdict.FAILED, color: rgb("breached") },
+                    { label: t("dash.verdictVerified"), value: s.verification_runs_by_verdict.VERIFIED, color: rgb("verified") },
+                    { label: t("dash.verdictPartially"), value: s.verification_runs_by_verdict.PARTIALLY_VERIFIED, color: rgb("blocked") },
+                    { label: t("dash.verdictFailed"), value: s.verification_runs_by_verdict.FAILED, color: rgb("breached") },
                   ]} />
               </Card>
             </div>
           </div>
 
           <div className="grid gap-4 xl:grid-cols-2">
-            <Card title={<span className="inline-flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-brand" />Recent verification results</span>}
-              actions={<Link className="text-xs text-brand hover:underline" to="/reports">All reports →</Link>}>
+            <Card title={<span className="inline-flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-brand" />{t("dash.recentVerification")}</span>}
+              actions={<Link className="text-xs text-brand hover:underline" to="/reports">{t("dash.allReports")}</Link>}>
               <ErrorBox error={reports.error} onRetry={reloadAll} />
               {reports.data && recentRuns.length === 0 && (
-                <Empty>No verification runs yet. Prove a fix in the <Link className="text-brand hover:underline" to="/replay">Attack Replay Lab</Link>.</Empty>
+                <Empty>{t("dash.noVerificationRuns")}</Empty>
               )}
               {recentRuns.length > 0 && (
                 <ul className="divide-y divide-line/10 text-sm">
@@ -155,10 +157,10 @@ export function Dashboard() {
                 </ul>
               )}
             </Card>
-            <Card title={<span className="inline-flex items-center gap-2"><Activity className="h-4 w-4 text-brand" />Recent scan activity</span>}
-              actions={<Link className="text-xs text-brand hover:underline" to="/findings">All findings →</Link>}>
+            <Card title={<span className="inline-flex items-center gap-2"><Activity className="h-4 w-4 text-brand" />{t("dash.recentScanActivity")}</span>}
+              actions={<Link className="text-xs text-brand hover:underline" to="/findings">{t("dash.allFindings")}</Link>}>
               {s.recent_scans.length === 0 ? (
-                <Empty>No scans yet. <Link className="text-brand hover:underline" to="/projects">Create a project</Link>, then start a scan.</Empty>
+                <Empty>{t("dash.noScansYet")}</Empty>
               ) : (
                 <ul className="divide-y divide-line/10 text-sm">
                   {s.recent_scans.map((scan) => (
@@ -167,7 +169,7 @@ export function Dashboard() {
                         <div className="truncate text-slate-200">{scan.project_name}</div>
                         <div className="text-xs text-slate-500">{fmtDate(scan.started_at)} · {scan.status}</div>
                       </div>
-                      <Link className="shrink-0 text-brand hover:underline" to={`/scans/${scan.id}`}>{scan.findings_count} finding(s)</Link>
+                      <Link className="shrink-0 text-brand hover:underline" to={`/scans/${scan.id}`}>{scan.findings_count} {t("dash.findingsCount")}</Link>
                     </li>
                   ))}
                 </ul>

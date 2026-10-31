@@ -1,26 +1,41 @@
-import { Link } from "react-router-dom";
+import { X } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
 import { Card, Empty, ErrorBox, fmtDate, Loading, PageHeader, Pill, strategyLabel, VerdictBadge, vulnLabel } from "../components/ui";
+import { useT } from "../i18n";
 import { useAction, useApi } from "../hooks/useApi";
 import { api } from "../services/api";
 
 export function Reports() {
+  const t = useT();
+  const [params, setParams] = useSearchParams();
+  const verdict = (params.get("verdict") ?? "").toUpperCase();
   const reports = useApi(() => api.listReports());
   const download = useAction();
+  const rows = verdict ? reports.data?.filter((r) => r.verdict === verdict) : reports.data;
   return (
     <>
-      <PageHeader title="Verification reports" subtitle="One report per executed verification run. These are verification reports, not security certifications." />
+      <PageHeader title={t("reports.title")} subtitle={t("reports.subtitle")} />
+      {verdict && (
+        <div className="mb-4 flex items-center gap-3">
+          <Pill className="bg-brand/15 text-brand ring-brand/40">{t("reports.filterVerdict", { verdict })}</Pill>
+          <button onClick={() => setParams({})} className="inline-flex items-center gap-1 text-sm text-slate-400 hover:text-brand">
+            <X className="h-3.5 w-3.5" /> {t("reports.clearFilter")}
+          </button>
+        </div>
+      )}
       <Card>
         <ErrorBox error={reports.error ?? download.error} onRetry={reports.error ? reports.reload : undefined} />
         {reports.loading && <Loading />}
         {reports.data?.length === 0 && <Empty>No verification runs yet. Use the Attack Replay Lab or a patch's “Run Proof-of-Fix”.</Empty>}
-        {!!reports.data?.length && (
+        {reports.data && rows?.length === 0 && reports.data.length > 0 && <Empty>No reports match this filter.</Empty>}
+        {!!rows?.length && (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[700px] text-left text-sm">
               <thead className="text-xs uppercase tracking-wide text-slate-500">
                 <tr><th className="pb-2">When</th><th className="pb-2">Type</th><th className="pb-2">Vulnerability</th><th className="pb-2">Patch</th><th className="pb-2">Result</th><th /></tr>
               </thead>
               <tbody>
-                {reports.data.map((r) => {
+                {rows.map((r) => {
                   const html = api.reportUrl(r.report_id, "html");
                   return (
                     <tr key={r.report_id} className="border-t border-slate-800">
