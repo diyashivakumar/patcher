@@ -18,6 +18,7 @@ import type {
   VerificationRunDetail,
   VulnType,
 } from "../types/api";
+import type { Candidate, ChallengeTrial, FindingOption } from "../types/challenge";
 import { mockApi } from "./mock";
 
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:8000/api";
@@ -117,6 +118,21 @@ const realApi = {
   getReport: (id: string) => request<Report>(`/reports/${id}`),
   downloadReport: (id: string, format: "json" | "html"): Promise<void> => downloadReport(id, format),
   reportUrl: (id: string, format: "json" | "html"): string | null => `${API_BASE}/reports/${id}?format=${format}`,
+  listCourtFindings: () => request<FindingOption[]>("/challenge/findings"),
+  runCourtTrial: (findingId: string, count = 8, useCache = true, temperature = 0.4) =>
+    post<ChallengeTrial>("/challenge/run", {
+      finding_id: findingId,
+      count,
+      use_cache: useCache,
+      temperature,
+    }),
+  submitJudgePatch: (findingId: string, sourceCode: string, candidateName?: string) =>
+    post<Candidate>("/challenge/submit", {
+      finding_id: findingId,
+      source_code: sourceCode,
+      candidate_name: candidateName,
+    }),
+  getCourtTrial: (challengeId: string) => request<ChallengeTrial>(`/challenge/${challengeId}`),
 };
 
 export type Api = typeof realApi;

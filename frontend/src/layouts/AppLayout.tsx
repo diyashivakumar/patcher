@@ -8,6 +8,7 @@ import {
   FileText,
   FlaskConical,
   FolderGit2,
+  Gavel,
   LayoutDashboard,
   Menu,
   ScanSearch,
@@ -23,7 +24,9 @@ import { api, USE_MOCKS } from "../services/api";
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/projects", label: "Projects", icon: FolderGit2 },
+  { to: "/court", label: "Fix Court (AI Trial)", icon: Gavel },
   { to: "/scanner", label: "Scanner", icon: ScanSearch },
+  { to: "/local-pc", label: "Windows PC", icon: ShieldCheck },
   { to: "/findings", label: "Findings", icon: Bug },
   { to: "/replay", label: "Attack Replay Lab", icon: FlaskConical },
   { to: "/reports", label: "Reports", icon: FileText },

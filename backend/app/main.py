@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.errors import install_error_handlers
-from app.routes import findings, health, patches, projects, reports, scans, verification
+from app.routes import challenge, findings, health, local_pc, patches, projects, reports, scans, verification
 
 
 def create_app() -> FastAPI:
@@ -26,7 +26,7 @@ def create_app() -> FastAPI:
         allow_headers=["Content-Type"],
     )
     install_error_handlers(app)
-    for module in (health, projects, scans, findings, patches, verification, reports):
+    for module in (health, local_pc, challenge, projects, scans, findings, patches, verification, reports):
         app.include_router(module.router, prefix="/api")
     return app
 

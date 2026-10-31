@@ -5,6 +5,8 @@ import { AttackReplayLab } from "./pages/AttackReplayLab";
 import { Dashboard } from "./pages/Dashboard";
 import { FindingDetail } from "./pages/FindingDetail";
 import { Findings } from "./pages/Findings";
+import { FixCourt } from "./pages/FixCourt";
+import { LocalPC } from "./pages/LocalPC";
 import { PatchReview } from "./pages/PatchReview";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import { Projects } from "./pages/Projects";
@@ -20,6 +22,8 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="projects" element={<Projects />} />
         <Route path="projects/:projectId" element={<ProjectDetail />} />
+        <Route path="court" element={<FixCourt />} />
+        <Route path="local-pc" element={<LocalPC />} />
         <Route path="scanner" element={<Scanner />} />
         <Route path="scans/:scanId" element={<ScanResults />} />
         <Route path="findings" element={<Findings />} />

@@ -116,4 +116,32 @@ export const mockApi: Api = {
   getReport: () => Promise.reject(new MockError("Report details need the real backend")),
   downloadReport: () => Promise.reject(new MockError("Report downloads need the real backend")),
   reportUrl: () => null,
+  listCourtFindings: () =>
+    wait([
+      {
+        id: "11111111-1111-1111-1111-111111111111",
+        project_id: "00000000-0000-0000-0000-000000000001",
+        vuln_type: "sqli",
+        title: "SQL Injection in /search (f-string query concatenation)",
+        severity: "CRITICAL",
+        file_path: "fixtures/vulnerable_app/app.py",
+        line_start: 65,
+        line_end: 70,
+        target_function: "search",
+      },
+      {
+        id: "22222222-2222-2222-2222-222222222222",
+        project_id: "00000000-0000-0000-0000-000000000001",
+        vuln_type: "idor",
+        title: "IDOR in /documents/<doc_id> (Missing ownership / permission check)",
+        severity: "HIGH",
+        file_path: "fixtures/vulnerable_app/app.py",
+        line_start: 82,
+        line_end: 89,
+        target_function: "get_document",
+      },
+    ]),
+  runCourtTrial: () => Promise.reject(new MockError("Fix Court trials require the backend execution harness")),
+  submitJudgePatch: () => Promise.reject(new MockError("Fix Court trials require the backend execution harness")),
+  getCourtTrial: () => Promise.reject(new MockError("Fix Court trials require the backend execution harness")),
 };
