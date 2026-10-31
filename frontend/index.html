@@ -6,15 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PatchProof</title>
     <script>
-      // No-flash: apply the saved theme/lang before first paint.
+      // No-flash: apply the saved theme before first paint.
       (function () {
         try {
           var t = localStorage.getItem("pp.theme");
           if (t !== "light" && t !== "dark") t = "dark";
           document.documentElement.setAttribute("data-theme", t);
           document.documentElement.style.colorScheme = t;
-          var l = localStorage.getItem("pp.lang");
-          if (l === "en" || l === "hi" || l === "kn") document.documentElement.lang = l;
         } catch (e) {
           document.documentElement.setAttribute("data-theme", "dark");
         }

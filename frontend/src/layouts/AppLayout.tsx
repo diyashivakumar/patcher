@@ -3,7 +3,7 @@ import { Suspense, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { LogoMark, Wordmark } from "../components/Logo";
 import { cx, Loading, Pill, ToastHost } from "../components/ui";
-import { LANGS, useI18n } from "../i18n";
+import { useI18n } from "../i18n";
 import type { TranslationKey } from "../i18n/en";
 import { API_BASE, USE_MOCKS } from "../services/api";
 import { useStatus } from "../status";
@@ -37,25 +37,6 @@ function StatusChip({ ok, warn, children }: { ok?: boolean; warn?: boolean; chil
       ok ? "border-verified/30 bg-verified/10 text-verified" : warn ? "border-blocked/30 bg-blocked/10 text-blocked" : "border-line/20 bg-surface-2/40 text-slate-400")}>
       {children}
     </span>
-  );
-}
-
-function LanguageSelector() {
-  const { lang, setLang, t } = useI18n();
-  return (
-    <label className="relative inline-flex items-center">
-      <span className="sr-only">{t("header.language")}</span>
-      <Globe className="pointer-events-none absolute left-2 h-3.5 w-3.5 text-slate-400" />
-      <select
-        value={lang}
-        onChange={(e) => setLang(e.target.value as typeof lang)}
-        aria-label={t("header.language")}
-        className="cursor-pointer appearance-none rounded-lg border border-line/20 bg-surface-2/50 py-1.5 pl-7 pr-6 text-[12px] font-medium text-slate-200 hover:border-brand/40 focus:outline-none"
-      >
-        {LANGS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
-      </select>
-      <svg className="pointer-events-none absolute right-2 h-3 w-3 text-slate-500" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-    </label>
   );
 }
 
@@ -135,7 +116,6 @@ export function AppLayout() {
                   <button onClick={() => setShowDemo(false)} aria-label={t("header.dismiss")} className="ml-0.5 text-blocked/70 hover:text-blocked"><X className="h-3 w-3" /></button>
                 </Pill>
               )}
-              <LanguageSelector />
               <ThemeToggle />
             </div>
           </header>
