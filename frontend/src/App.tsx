@@ -8,6 +8,7 @@ import { Findings } from "./pages/Findings";
 import { Forensics } from "./pages/Forensics";
 import { Gauntlet } from "./pages/Gauntlet";
 import { KillChain } from "./pages/KillChain";
+import { PortInspector } from "./pages/PortInspector";
 import { PatchReview } from "./pages/PatchReview";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import { Projects } from "./pages/Projects";
@@ -23,6 +24,7 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="projects" element={<Projects />} />
         <Route path="projects/:projectId" element={<ProjectDetail />} />
+        <Route path="host/ports" element={<PortInspector />} />
         <Route path="scanner" element={<Scanner />} />
         <Route path="scans/:scanId" element={<ScanResults />} />
         <Route path="findings" element={<Findings />} />

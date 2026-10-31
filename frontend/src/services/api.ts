@@ -7,6 +7,7 @@ import type {
   FindingDetail,
   FixtureInfo,
   Health,
+  HostPortsResult,
   OllamaStatus,
   Patch,
   Project,
@@ -122,6 +123,7 @@ const realApi = {
   downloadReport: (id: string, format: "json" | "html"): Promise<void> => downloadReport(id, format),
   reportUrl: (id: string, format: "json" | "html"): string | null => `${API_BASE}/reports/${id}?format=${format}`,
   chainImpact: (projectId?: string) => post<ChainImpactResult>("/challenge/chain-impact", projectId ? { project_id: projectId } : {}),
+  hostPorts: () => request<HostPortsResult>("/host/ports"),
 };
 
 export type Api = typeof realApi;

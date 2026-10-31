@@ -428,6 +428,40 @@ export interface DashboardSummary {
   }[];
 }
 
+// ---------------------------------------------------------------- Windows Port Inspector
+export type PortRisk = "HIGH" | "MEDIUM" | "LOW" | "INFO";
+
+export interface PortEntry {
+  protocol: string;
+  local_address: string;
+  port: number | null;
+  pid: number | null;
+  process_name: string;
+  process_path: string | null;
+  binding_scope: "localhost" | "specific_interface" | "all_interfaces";
+  risk: PortRisk;
+  risk_reason: string;
+}
+
+export interface PortSummary {
+  total: number;
+  tcp: number;
+  udp: number;
+  localhost: number;
+  external: number;
+  by_risk: Record<PortRisk, number>;
+}
+
+export interface HostPortsResult {
+  supported: boolean;
+  os: string;
+  inspected_at: string;
+  scope_note: string;
+  warning: string | null;
+  entries: PortEntry[];
+  summary: PortSummary;
+}
+
 export interface OllamaStatus {
   available: boolean;
   base_url: string;
