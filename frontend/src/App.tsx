@@ -7,6 +7,7 @@ import { FindingDetail } from "./pages/FindingDetail";
 import { Findings } from "./pages/Findings";
 import { Forensics } from "./pages/Forensics";
 import { Gauntlet } from "./pages/Gauntlet";
+import { GitHubImport } from "./pages/GitHubImport";
 import { KillChain } from "./pages/KillChain";
 import { PortInspector } from "./pages/PortInspector";
 import { PatchReview } from "./pages/PatchReview";
@@ -25,6 +26,7 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="projects" element={<Projects />} />
         <Route path="projects/:projectId" element={<ProjectDetail />} />
+        <Route path="import/github" element={<GitHubImport />} />
         <Route path="host/ports" element={<PortInspector />} />
         <Route path="website-check" element={<WebsiteCheck />} />
         <Route path="scanner" element={<Scanner />} />

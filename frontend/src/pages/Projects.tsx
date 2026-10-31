@@ -91,7 +91,7 @@ export function Projects() {
                     <td className="py-2.5"><Link className="text-sky-400 hover:underline" to={`/projects/${p.id}`}>{p.name}</Link></td>
                     <td className="py-2.5">
                       <Pill className={p.verification_supported ? "bg-sky-500/10 text-sky-300 ring-sky-500/30" : "bg-slate-700/30 text-slate-300 ring-slate-600"}>
-                        {p.source_type === "fixture" ? "Fixture · verifiable" : "Upload · scan only"}
+                        {p.source_type === "fixture" ? "Fixture · verifiable" : p.source_type === "github" ? "GitHub · scan only" : "Upload · scan only"}
                       </Pill>
                     </td>
                     <td className="py-2.5 tabular-nums">{p.file_count}</td>

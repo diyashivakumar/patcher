@@ -9,9 +9,10 @@ from app.database import get_db
 from app.errors import ApiError, not_found
 from app.models import Project
 from app.models.audit_log import record
-from app.schemas.project import FixtureInfo, ProjectCreate, ProjectDetail, ProjectOut
+from app.schemas.project import (FixtureInfo, GitHubBranch, GitHubImportRequest, GitHubRepoInfo,
+                                  ProjectCreate, ProjectDetail, ProjectOut)
 from app.serializers import project_out
-from app.services import storage
+from app.services import github_import, storage
 
 router = APIRouter(tags=["projects"])
 
@@ -63,6 +64,47 @@ async def upload_project(
     db.flush()  # insert the project before its audit row (audit_logs.project_id FK)
     record(db, "project.upload", "project", project.id, project.id, filename=file.filename,
            files=project.file_count, skipped=len(skipped))
+    db.commit()
+    db.refresh(project)
+    return project_out(project, detail=True, upload_skipped=skipped)
+
+
+@router.get("/projects/import/github/branches", response_model=GitHubRepoInfo)
+def github_repo_info(url: str):
+    """Look up a public GitHub repo's metadata and branches so the user can pick one to import."""
+    try:
+        owner, repo, _ = github_import.parse_github_url(url)
+        meta = github_import.get_repo_meta(owner, repo)
+        branches = github_import.list_branches(owner, repo)
+    except github_import.GitHubImportError as exc:
+        raise ApiError(exc.status, "github_import_failed", str(exc)) from exc
+    return GitHubRepoInfo(**meta, branches=[GitHubBranch(**b) for b in branches])
+
+
+@router.post("/projects/import/github", response_model=ProjectDetail, status_code=201)
+def import_github(body: GitHubImportRequest, db: Session = Depends(get_db)):
+    """Import a PUBLIC GitHub repository by downloading its branch archive and running it through
+    the same ZIP validation/scanning pipeline as uploads. Imported code is never executed."""
+    try:
+        owner, repo, url_ref = github_import.parse_github_url(body.url)
+        meta = github_import.get_repo_meta(owner, repo)
+        ref = body.branch or url_ref or meta["default_branch"]
+        commit = github_import.resolve_ref_sha(owner, repo, ref)
+        data = github_import.download_zip(owner, repo, ref)
+    except github_import.GitHubImportError as exc:
+        raise ApiError(exc.status, "github_import_failed", str(exc)) from exc
+
+    project = Project(id=uuid.uuid4(), name=body.name or meta["full_name"], description=meta.get("description"),
+                      source_type="github", source_url=meta["html_url"], source_ref=ref, source_commit=commit)
+    try:
+        project.file_count, project.total_bytes, skipped = storage.extract_upload(project.id, data)
+    except storage.UploadRejected as exc:
+        storage.delete_project_files(project.id)
+        raise ApiError(422, "upload_rejected", str(exc)) from exc
+    db.add(project)
+    db.flush()
+    record(db, "project.import_github", "project", project.id, project.id,
+           repo=meta["full_name"], ref=ref, commit=commit, files=project.file_count, skipped=len(skipped))
     db.commit()
     db.refresh(project)
     return project_out(project, detail=True, upload_skipped=skipped)

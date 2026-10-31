@@ -23,7 +23,7 @@ export function ProjectDetail() {
     <>
       <PageHeader
         title={p.name}
-        subtitle={<>{p.description ?? (p.source_type === "fixture" ? "Bundled practice fixture" : "Uploaded project")} · {p.file_count} files · {(p.total_bytes / 1024).toFixed(1)} KB</>}
+        subtitle={<>{p.description ?? (p.source_type === "fixture" ? "Bundled practice fixture" : p.source_type === "github" ? "Imported from GitHub" : "Uploaded project")} · {p.file_count} files · {(p.total_bytes / 1024).toFixed(1)} KB{p.source_type === "github" && p.source_ref ? ` · ${p.source_ref}${p.source_commit ? ` @ ${p.source_commit.slice(0, 7)}` : ""}` : ""}</>}
         actions={<>
           {p.verification_supported && (
             <Link to={`/replay?project=${p.id}`} className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm hover:bg-slate-700">
@@ -36,7 +36,7 @@ export function ProjectDetail() {
       <ErrorBox error={scan.error} />
       {!p.verification_supported && (
         <div className="mb-4 rounded-lg border border-slate-700 bg-slate-900 p-3 text-sm text-slate-400">
-          This is an uploaded project. PatchProof can scan it and propose patches, but will not execute uploaded code, so
+          This is {p.source_type === "github" ? "an imported GitHub repository" : "an uploaded project"}. PatchProof can scan it and propose patches, but will not execute {p.source_type === "github" ? "imported" : "uploaded"} code, so
           Proof-of-Fix verification is unavailable.
         </div>
       )}

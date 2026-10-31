@@ -1,4 +1,4 @@
-import { Bot, Bug, Database, FileText, Fingerprint, FlaskConical, FolderGit2, Globe, LayoutDashboard, Link2, Menu, Network, ScanSearch, Swords, WifiOff, X } from "lucide-react";
+import { Bot, Bug, Database, FileText, Fingerprint, FlaskConical, FolderGit2, Github, Globe, LayoutDashboard, Link2, Menu, Network, ScanSearch, Swords, WifiOff, X } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { LogoMark, Wordmark } from "../components/Logo";
@@ -9,6 +9,7 @@ import { API_BASE, api, USE_MOCKS } from "../services/api";
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/projects", label: "Projects", icon: FolderGit2 },
+  { to: "/import/github", label: "GitHub Import", icon: Github },
   { to: "/scanner", label: "Scanner", icon: ScanSearch },
   { to: "/findings", label: "Findings", icon: Bug },
   { to: "/replay", label: "Attack Replay Lab", icon: FlaskConical },
@@ -21,7 +22,7 @@ const NAV = [
 ];
 
 const CRUMB: Record<string, string> = {
-  "": "Dashboard", projects: "Projects", scanner: "Scanner", findings: "Findings",
+  "": "Dashboard", projects: "Projects", import: "GitHub Import", scanner: "Scanner", findings: "Findings",
   scans: "Scan results", replay: "Attack Replay Lab", gauntlet: "Variant Gauntlet", forensics: "Exposure Forensics",
   "kill-chain": "Attack Kill-Chain", host: "Port Inspector", "website-check": "Website Security",
   reports: "Reports", verification: "Verification", patches: "Patch review",

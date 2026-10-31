@@ -33,8 +33,11 @@ export interface Project {
   id: string;
   name: string;
   description: string | null;
-  source_type: "fixture" | "upload";
+  source_type: "fixture" | "upload" | "github";
   fixture_name: string | null;
+  source_url?: string | null;
+  source_ref?: string | null;
+  source_commit?: string | null;
   file_count: number;
   total_bytes: number;
   verification_supported: boolean;
@@ -487,6 +490,23 @@ export interface SiteCheck {
   disclaimer: string;
   created_at: string;
   updated_at: string;
+}
+
+// ---------------------------------------------------------------- GitHub import
+export interface GitHubBranch {
+  name: string;
+  commit: string;
+}
+
+export interface GitHubRepoInfo {
+  owner: string;
+  repo: string;
+  full_name: string;
+  description: string | null;
+  default_branch: string;
+  is_public: boolean;
+  html_url: string;
+  branches: GitHubBranch[];
 }
 
 export interface OllamaStatus {

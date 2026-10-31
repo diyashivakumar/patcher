@@ -56,6 +56,7 @@ PatchProof treats a fix as a hypothesis. It must (1) reproduce the original vuln
 | **Security reports** | JSON and printable HTML verification reports with all evidence and known limitations. |
 | **Exploit Variant Gauntlet** | *One exploit is not enough.* Every Proof-of-Fix also replays validated variations of the attack: case, spacing, SQL comments, URL encoding, injection position and UNION for SQLi; many actor/record combinations for IDOR. Each runs on both the original and the patched app. A variant that doesn't reproduce on the original is marked **invalid** and never counted as a block. A variant that still works after the patch is a **bypass**: the patch is rejected and the case is saved as a regression test for every future run. |
 | **Data Exposure Forensics** | *Show exactly what got exposed.* Synthetic canary records (DOC-101/202/303) carry a marker in every field. PatchProof inspects each actual response for those markers and builds an **exposure ledger**: which actor saw which record and which fields, before and after the patch. Exposure is never inferred from the HTTP status alone. |
+| **GitHub repository import** | Import a **public** `github.com` repository as a project by URL. PatchProof downloads the branch archive and runs it through the **same** ZIP validation and scanning pipeline as an upload (path-traversal, symlink, archive-bomb, size and secret checks; `.git` and non-source files dropped). No token is required and imported code is **never executed**. |
 | **Windows Port Inspector** | A read-only view of which TCP/UDP services are listening locally and how widely they are exposed (localhost vs. a specific interface vs. all interfaces), with a transparent risk heuristic that flags sensitive ports (SMB, RDP, databases, etc.) open on all interfaces. It never terminates a process or touches the firewall. |
 | **Live Website Security Check** | A deliberately non-invasive review of a public website's HTTPS/TLS, security headers, cookie flags and configuration using only ordinary GET/HEAD requests — no scanning, brute forcing or exploitation. Strict SSRF protections reject private/loopback/link-local/metadata targets, pin the connection to a validated IP (anti-DNS-rebinding) and re-validate every redirect. Cookie *values* and auth tokens are never collected. |
 | **Optional Ollama assistance** | A local AI can write a friendlier explanation of a finding. It is advisory only and the app works fully without it. |
@@ -240,6 +241,7 @@ All endpoints are under `/api`. Interactive docs are at **<http://localhost:8000
 |---|---|
 | Health | `GET /health`, `GET /health/ollama`, `GET /dashboard/summary` |
 | Projects | `GET /fixtures`, `POST /projects`, `POST /projects/upload`, `GET /projects`, `GET /projects/{id}` |
+| GitHub import | `GET /projects/import/github/branches?url=...`, `POST /projects/import/github` |
 | Port Inspector | `GET /host/ports` (Windows only; returns `supported:false` elsewhere) |
 | Website check | `POST /site-checks`, `GET /site-checks`, `GET /site-checks/{check_id}` |
 | Scans | `POST /scans`, `GET /scans/{id}`, `GET /scans/{id}/findings` |

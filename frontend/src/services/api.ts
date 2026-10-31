@@ -6,6 +6,7 @@ import type {
   Finding,
   FindingDetail,
   FixtureInfo,
+  GitHubRepoInfo,
   Health,
   HostPortsResult,
   OllamaStatus,
@@ -128,6 +129,10 @@ const realApi = {
   runSiteCheck: (url: string, authorized: boolean) => post<SiteCheck>("/site-checks", { url, authorized }),
   listSiteChecks: () => request<SiteCheck[]>("/site-checks"),
   getSiteCheck: (id: string) => request<SiteCheck>(`/site-checks/${id}`),
+  githubRepoInfo: (url: string) =>
+    request<GitHubRepoInfo>(`/projects/import/github/branches?url=${encodeURIComponent(url)}`),
+  importGithub: (data: { url: string; branch?: string; name?: string }) =>
+    post<ProjectDetail>("/projects/import/github", data),
 };
 
 export type Api = typeof realApi;

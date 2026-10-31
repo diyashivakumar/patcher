@@ -192,6 +192,17 @@ export const mockApi: Api = {
     }, 1100),
   listSiteChecks: () => wait([]),
   getSiteCheck: () => Promise.reject(new MockError("Site-check details need the real backend")),
+  githubRepoInfo: (url) => {
+    const m = url.match(/github\.com\/([^/]+)\/([^/]+)/);
+    if (!m) return Promise.reject(new MockError("Enter a public GitHub repository URL."));
+    const [, owner, repo] = m;
+    return wait({
+      owner, repo: repo.replace(/\.git$/, ""), full_name: `${owner}/${repo}`, description: "Demo repository metadata (mock mode).",
+      default_branch: "main", is_public: true, html_url: `https://github.com/${owner}/${repo}`,
+      branches: [{ name: "main", commit: "a".repeat(40) }, { name: "develop", commit: "b".repeat(40) }],
+    }, 500);
+  },
+  importGithub: () => Promise.reject(new MockError("GitHub import needs the real backend")),
   getReport: () => Promise.reject(new MockError("Report details need the real backend")),
   downloadReport: () => Promise.reject(new MockError("Report downloads need the real backend")),
   reportUrl: () => null,
