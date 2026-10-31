@@ -6,7 +6,8 @@ from app.models.patch import Patch
 from app.models.project import Project
 from app.models.regression_case import RegressionCase
 from app.models.scan import Scan
+from app.models.site_check import SiteCheck
 from app.models.verification import VerificationRun, VerificationTestResult
 
-__all__ = ["AuditLog", "Base", "Finding", "Patch", "Project", "RegressionCase", "Scan", "VerificationRun",
+__all__ = ["AuditLog", "Base", "Finding", "Patch", "Project", "RegressionCase", "Scan", "SiteCheck", "VerificationRun",
            "VerificationTestResult"]

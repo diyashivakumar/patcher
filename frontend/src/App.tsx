@@ -16,6 +16,7 @@ import { Reports } from "./pages/Reports";
 import { Scanner } from "./pages/Scanner";
 import { ScanResults } from "./pages/ScanResults";
 import { VerificationResult } from "./pages/VerificationResult";
+import { WebsiteCheck } from "./pages/WebsiteCheck";
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="projects" element={<Projects />} />
         <Route path="projects/:projectId" element={<ProjectDetail />} />
         <Route path="host/ports" element={<PortInspector />} />
+        <Route path="website-check" element={<WebsiteCheck />} />
         <Route path="scanner" element={<Scanner />} />
         <Route path="scans/:scanId" element={<ScanResults />} />
         <Route path="findings" element={<Findings />} />

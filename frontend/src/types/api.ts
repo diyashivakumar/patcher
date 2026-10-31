@@ -462,6 +462,33 @@ export interface HostPortsResult {
   summary: PortSummary;
 }
 
+// ---------------------------------------------------------------- Live Website Security Check
+export interface SiteCheckItem {
+  name: string;
+  status: "PASS" | "WARNING" | "INFO" | "ERROR";
+  evidence: string | null;
+  explanation: string;
+  remediation: string | null;
+  checked_at: string | null;
+}
+
+export interface SiteCheck {
+  id: string;
+  url: string;
+  host: string;
+  authorized: boolean;
+  status: "COMPLETED" | "ERROR";
+  final_url: string | null;
+  resolved_ips: string[];
+  redirect_chain: { url: string; status: number }[];
+  posture: { counts?: Record<string, number>; summary?: string };
+  checks: SiteCheckItem[];
+  error: string | null;
+  disclaimer: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface OllamaStatus {
   available: boolean;
   base_url: string;

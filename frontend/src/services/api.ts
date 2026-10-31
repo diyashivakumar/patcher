@@ -17,6 +17,7 @@ import type {
   Report,
   ReportListItem,
   ScanSummary,
+  SiteCheck,
   VerificationRun,
   VerificationRunDetail,
   VulnType,
@@ -124,6 +125,9 @@ const realApi = {
   reportUrl: (id: string, format: "json" | "html"): string | null => `${API_BASE}/reports/${id}?format=${format}`,
   chainImpact: (projectId?: string) => post<ChainImpactResult>("/challenge/chain-impact", projectId ? { project_id: projectId } : {}),
   hostPorts: () => request<HostPortsResult>("/host/ports"),
+  runSiteCheck: (url: string, authorized: boolean) => post<SiteCheck>("/site-checks", { url, authorized }),
+  listSiteChecks: () => request<SiteCheck[]>("/site-checks"),
+  getSiteCheck: (id: string) => request<SiteCheck>(`/site-checks/${id}`),
 };
 
 export type Api = typeof realApi;
