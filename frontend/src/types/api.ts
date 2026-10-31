@@ -192,6 +192,130 @@ export interface VerificationRun {
 export interface VerificationRunDetail extends VerificationRun {
   patch_status: PatchStatus | null;
   test_results: TestResult[];
+  /** Runner schema 1.1. null/absent for runs recorded before the Gauntlet existed. */
+  gauntlet?: Gauntlet | null;
+  forensics?: Forensics | null;
+}
+
+// ---------------------------------------------------------------- Exploit Variant Gauntlet (runner 1.1)
+export type GauntletStatus = "blocked" | "bypass" | "invalid" | "inconclusive" | "works" | "regression_failed";
+
+export interface VariantInput {
+  actor: string;
+  method: string;
+  path: string;
+  params?: Record<string, string>;
+  raw_query?: string;
+}
+
+export interface VariantPhaseView {
+  status_code: number | null;
+  error: string | null;
+  exploited: boolean;
+  legit_ok: boolean | null;
+  exposure_outcome: string;
+  response_bytes: number;
+  /** SQLi execution probe output was found in the response (runner QA oracle). */
+  injection_probe_hit?: boolean;
+  records: { record_id: string; authorized: boolean; exposed_fields: string[]; exposure_status: string; detection?: "canary_marker" | "record_identity" }[];
+}
+
+export interface GauntletCase {
+  variant_id: string;
+  scenario: VulnType;
+  kind: "attack" | "legit";
+  variation: string;
+  description: string;
+  input: VariantInput;
+  fingerprint: string;
+  source: "builtin" | "saved_regression_case";
+  regression_case_id: string | null;
+  expected: string;
+  status: GauntletStatus;
+  reason: string;
+  before: VariantPhaseView | null;
+  after: VariantPhaseView | null;
+}
+
+export interface Gauntlet {
+  cases: GauntletCase[];
+  counts: Record<GauntletStatus, number>;
+  valid_attack_variants: number;
+  bypasses: string[];
+  requires_review: boolean;
+}
+
+// ---------------------------------------------------------------- Data Exposure Forensics (runner 1.1)
+export interface LedgerRow {
+  phase: string;
+  scenario: VulnType;
+  evidence_ref: string;
+  variant_id: string;
+  actor: string;
+  request: string;
+  status_code: number | null;
+  record_id: string;
+  record_owner: string;
+  record_type: string;
+  authorized: boolean;
+  exposed_fields: string[];
+  field_sensitivity: Record<string, string>;
+  canary_match: string[];
+  exposure_status: string;
+  /** How the exposure was proven: canary markers in the body, or the record itself (by id) served to the actor. */
+  detection?: "canary_marker" | "record_identity";
+  verification_run_id?: string;
+}
+
+export interface ForensicsPhase {
+  unauthorized_records_exposed: string[];
+  protected_fields_exposed: string[];
+  legitimate_records_accessible: string[];
+  exposure_events: number;
+  ledger: LedgerRow[];
+}
+
+export interface CanaryRecordInfo {
+  record_id: string;
+  db_id: number;
+  owner: string;
+  record_type: string;
+  marker: string;
+  authorized_actors: string[];
+  fields: { name: string; sensitivity: string; marker: string }[];
+}
+
+export interface Forensics {
+  canary_records: CanaryRecordInfo[];
+  phases: Record<string, ForensicsPhase>;
+  comparison?: {
+    records_no_longer_exposed: string[];
+    records_still_exposed: string[];
+    fields_no_longer_exposed: string[];
+    fields_still_exposed: string[];
+    legitimate_access_kept: string[];
+    legitimate_access_lost: string[];
+  };
+}
+
+export interface RegressionCase {
+  id: string;
+  fixture_name: string;
+  scenario: VulnType;
+  fingerprint: string;
+  kind: string;
+  variation: string;
+  description: string;
+  input: VariantInput;
+  source_variant_id: string;
+  source_run_id: string | null;
+  source_patch_id: string | null;
+  original_outcome: VariantPhaseView;
+  patched_outcome: VariantPhaseView;
+  times_seen: number;
+  last_seen_run_id: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ReportListItem {
@@ -233,7 +357,59 @@ export interface Report {
   known_limitations: string[];
 }
 
+// ---------------------------------------------------------------- Kill-chain impact (challenge)
+export interface ChainStep {
+  step_id: string;
+  name: string;
+  reached: boolean;
+  succeeded: boolean;
+  stolen: string[];
+  canary_ids: string[];
+  actor: string | null;
+  status_code: number | null;
+  actual: string;
+}
+
+export interface BreachBill {
+  records_exposed: number;
+  records: string[];
+  fields_exposed: number;
+  fields: string[];
+  private_fields_exposed: number;
+  owners_affected: string[];
+  credentials_stolen: number;
+  categories: Record<string, { label: string; count: number; items: string[]; detail: string }>;
+  any_exposure: boolean;
+  dpdp_references: { provision: string; statutory_maximum_inr: number; statutory_maximum_label: string; caveat: string }[];
+  penalty_caveat: string;
+}
+
+export interface ChainMatrixRow {
+  copy_id: string;
+  label: string;
+  applied_fixes: string[];
+  steps_reached: number;
+  reached_final: boolean;
+  chain_succeeded: boolean;
+  stolen: string[];
+  final_records: string[];
+  steps: ChainStep[];
+  ledger: LedgerRow[];
+  breach_bill: BreachBill;
+}
+
+export interface ChainImpactResult {
+  scenario: string;
+  total_steps: number;
+  matrix: ChainMatrixRow[];
+  best_single_fix: { copy_id: string; label: string; applied_fixes: string[]; steps_reached: number; records_exposed: number } | null;
+  canary_records: string;
+}
+
 export interface DashboardSummary {
+  /** Findings in each project's latest scan without a VERIFIED patch (absent from older backends). */
+  open_findings?: number;
+  open_findings_by_severity?: Record<Severity, number>;
   total_projects: number;
   total_scans: number;
   total_findings: number;

@@ -3,85 +3,100 @@
 @tailwind utilities;
 
 /* ----------------------------------------------------------------------------
-   PatchProof design tokens. Named, intentional identity -- deep cool base, one
-   confident azure accent, and semantic status colors. Everything references
-   these via the Tailwind `brand/surface/line/verified/...` color tokens, so the
-   whole app inherits the identity from the ui.tsx primitives.
+   PatchProof — Cyber Command Centre design tokens.
+   Deep navy base, cyan primary accent, violet secondary, glassmorphism surfaces.
+   Referenced via the Tailwind color tokens so ui.tsx primitives carry the identity.
 ---------------------------------------------------------------------------- */
 :root {
   color-scheme: dark;
 
-  --brand: 90 150 255;        /* azure accent              #5a96ff */
-  --brand-ink: 6 12 26;       /* text on brand surfaces             */
+  --brand: 66 232 245;        /* primary cyan        #42E8F5 */
+  --brand-ink: 4 10 18;       /* text on cyan                */
+  --blue: 86 139 255;         /* electric blue       #568BFF */
+  --violet: 182 107 255;      /* neon violet         #B66BFF */
 
-  --ink: 8 11 19;             /* app canvas                #080b13 */
-  --surface: 16 21 33;        /* card surface              #101521 */
-  --surface-2: 22 29 45;      /* raised surface            #161d2d */
-  --line: 32 41 61;           /* hairline borders          #20293d */
+  --ink: 7 11 20;             /* app canvas          #070B14 */
+  --ink-2: 11 18 32;          /* secondary bg        #0B1220 */
+  --surface: 16 26 43;        /* elevated surface    #101A2B */
+  --surface-2: 18 32 49;      /* glass base          #122031 */
+  --line: 125 165 205;        /* border tint (used low alpha)*/
 
-  --verified: 52 211 153;     /* emerald  -- VERIFIED               */
-  --breached: 251 113 133;    /* rose     -- BREACHED / FAILED      */
-  --blocked: 251 191 36;      /* amber    -- blocked / warning      */
-  --pending: 129 140 248;     /* indigo   -- pending / running      */
+  --verified: 53 230 161;     /* emerald  #35E6A1 */
+  --breached: 255 85 118;     /* coral    #FF5576 */
+  --blocked: 255 198 109;     /* amber    #FFC66D */
+  --pending: 86 139 255;      /* blue     #568BFF */
 
-  --text: 226 232 240;
-  --text-dim: 148 163 184;
-  --text-faint: 100 116 139;
+  --text: 237 245 255;        /* #EDF5FF */
+  --text-dim: 147 167 193;    /* #93A7C1 */
+  --text-faint: 96 116 141;   /* #60748D */
 }
 
 body {
-  @apply bg-ink font-sans text-slate-200 antialiased;
-  background-image: radial-gradient(900px 500px at 100% -5%, rgb(var(--brand) / 0.06), transparent 60%);
+  @apply bg-ink text-slate-200 antialiased;
+  color: rgb(var(--text));
+  background-color: rgb(var(--ink));
+  background-image:
+    radial-gradient(1000px 560px at 8% -8%, rgb(var(--brand) / 0.10), transparent 55%),
+    radial-gradient(900px 520px at 100% 0%, rgb(var(--violet) / 0.09), transparent 55%),
+    radial-gradient(1200px 700px at 50% 120%, rgb(var(--blue) / 0.06), transparent 55%);
   background-attachment: fixed;
 }
 
-/* Focus rings: consistent, visible, keyboard-only. */
-:focus-visible {
-  outline: 2px solid rgb(var(--brand) / 0.7);
-  outline-offset: 2px;
-  border-radius: 6px;
+/* ---- Glass panels: the finishing style on every surface ---- */
+.glass {
+  background: rgb(var(--surface-2) / 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgb(var(--line) / 0.16);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 24px 60px -28px rgb(0 0 0 / 0.75);
 }
+.glass-hover { transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
+.glass-hover:hover {
+  transform: translateY(-2px);
+  border-color: rgb(var(--brand) / 0.35);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 28px 70px -26px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(var(--brand) / 0.08);
+}
+.edge-cyan { box-shadow: 0 0 0 1px rgb(var(--brand) / 0.18), 0 0 28px -8px rgb(var(--brand) / 0.35); }
+.text-glow-cyan { text-shadow: 0 0 20px rgb(var(--brand) / 0.45); }
 
-/* ---- Signature motif: the "proof stamp" ---- */
+/* Focus rings: visible, keyboard-only. */
+:focus-visible { outline: 2px solid rgb(var(--brand) / 0.75); outline-offset: 2px; border-radius: 8px; }
+
+/* ---- Signature motif: the proof stamp ---- */
 @keyframes stamp-in {
   0% { opacity: 0; transform: rotate(var(--seal-rot, -8deg)) scale(1.6); }
   55% { opacity: 1; transform: rotate(var(--seal-rot, -8deg)) scale(0.92); }
   100% { opacity: 1; transform: rotate(var(--seal-rot, -8deg)) scale(1); }
 }
-.seal-stamp { animation: stamp-in 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.seal-stamp { animation: stamp-in 380ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 
-@keyframes rise-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.rise-in { animation: rise-in 300ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes rise-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.rise-in { animation: rise-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 
-@keyframes toast-in {
-  from { opacity: 0; transform: translateY(10px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
+@keyframes toast-in { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .toast-in { animation: toast-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* ---- Network topology: gently pulsing nodes + drawing links ---- */
+@keyframes node-pulse { 0%, 100% { opacity: 0.55; r: var(--r); } 50% { opacity: 1; } }
+@keyframes dash-flow { to { stroke-dashoffset: -16; } }
+@keyframes draw-in { from { stroke-dashoffset: var(--len, 300); } to { stroke-dashoffset: 0; } }
+.node-pulse { animation: node-pulse 2.8s ease-in-out infinite; }
+.link-flow { stroke-dasharray: 3 5; animation: dash-flow 1.1s linear infinite; }
+.draw-in { animation: draw-in 900ms ease-out both; }
 
 /* ---- Skeleton shimmer ---- */
 @keyframes shimmer { 100% { transform: translateX(100%); } }
-.skeleton {
-  position: relative;
-  overflow: hidden;
-  background: rgb(var(--surface-2));
-}
+.skeleton { position: relative; overflow: hidden; background: rgb(var(--surface-2) / 0.7); }
 .skeleton::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.05), transparent);
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(var(--brand) / 0.06), transparent);
   animation: shimmer 1.4s infinite;
 }
 
-/* ---- Scrollbars that match the surface ---- */
-* { scrollbar-color: rgb(var(--line)) transparent; scrollbar-width: thin; }
+/* ---- Scrollbars ---- */
+* { scrollbar-color: rgb(var(--line) / 0.3) transparent; scrollbar-width: thin; }
 *::-webkit-scrollbar { height: 10px; width: 10px; }
-*::-webkit-scrollbar-thumb { background: rgb(var(--line)); border-radius: 999px; }
+*::-webkit-scrollbar-thumb { background: rgb(var(--line) / 0.22); border-radius: 999px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }

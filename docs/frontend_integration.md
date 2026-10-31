@@ -52,8 +52,11 @@ src/
 | `/findings/:id` | Finding details, code evidence, patch generation, AI explanation | `GET /findings/{id}`, `POST /patches/generate`, `POST /findings/{id}/ai-explanation` |
 | `/patches/:id` | Patch review: diff, original/proposed, approval, rollback, Proof-of-Fix | `GET /patches/{id}`, `POST …/apply`, `POST …/rollback`, `POST /verification/run` |
 | `/replay` | Attack Replay Lab: Before patch → Patch → After patch (same attack, before/after table) → Final verdict | `POST /projects`, `POST /verification/run` (baseline and Proof-of-Fix), `POST /scans`, `POST /patches/*` |
+| `/gauntlet` | Exploit Variant Gauntlet: scenario + run picker, counts, surviving-bypass panel, expandable variant matrix (original vs patched), preserved regression cases, “Run Gauntlet again” (re-runs Proof-of-Fix for the run's still-applied patch) | `GET /verification?kind=proof_of_fix`, `GET /verification/{id}`, `GET /regression-cases`, `GET /patches/{id}`, `POST /verification/run` |
+| `/forensics` | Data Exposure Forensics: totals, per-record before/after comparison, record inspector (fields + sensitivity + markers), phase-tabbed exposure ledger | `GET /verification`, `GET /verification/{id}` |
 | `/verification/:id` | Verification result: verdict, what was verified, patch diff, before/after table, evidence, downloads | `GET /verification/{id}`, `GET /reports/{id}`, report downloads |
 | `/reports` | Verification reports: view, open HTML, download HTML/JSON | `GET /reports`, `GET /reports/{id}?format=html|json` |
+| `/kill-chain` | Attack Kill-Chain: animated SQLi→token→IDOR graph, Breach Exposure receipt (DPDP caveat inline), fix-impact matrix with a Best-single-fix badge. Mock-mode fixture under `services/mockData.json` (`chainImpact`) so it renders with the backend/Ollama down. | `POST /challenge/chain-impact` |
 
 The layout calls `GET /health` once on load and shows a red **Backend unreachable** banner with Retry, or an amber banner if the API is up but its database is down.
 
@@ -100,3 +103,35 @@ Response times are noticeably longer on Neon than on a local DB. Generating a pa
 ## CORS
 
 The backend allows the origin(s) in `FRONTEND_ORIGIN` (default `http://localhost:5173`). If you run Vite on another port or host, add it there. For example, opening the app at `http://127.0.0.1:5173` is a *different* origin from `http://localhost:5173`.
+
+## Live Attack Timeline
+
+`components/AttackTimeline.tsx` (UI) and `components/timelineModel.ts` (pure builder) show a seven-stage verification story: Exploit Reproduction → Vulnerability Confirmation → Patch Approval → Patch Application → Attack Replay → Regression Testing → Final Verdict. It appears in the Attack Replay Lab (right column on wide screens) and on every Verification result page.
+
+**It is reconstructed, not streamed.** `POST /verification/run` is one synchronous request, and the backend emits no intermediate events. The timeline is built from stored records. The only "Running" state is the request the user has actually started: during Proof-of-Fix, stages 5–7 show Running until the response arrives. There are no timers, no polling and no progress percentages.
+
+| Stage | Source (real fields only) | Timestamp / duration shown |
+|---|---|---|
+| 1 Exploit Reproduction | Proof run `phase_summaries.before_patch` + before-patch security results; otherwise the Lab's baseline run | Before-phase `duration_ms`; baseline run `started_at` + `duration_ms` |
+| 2 Vulnerability Confirmation | Finding (Lab: `GET /findings/{id}`; result page: report `finding`) | Finding `created_at`, or the report's `scan.started_at` |
+| 3 Patch Approval | Patch `status`, `approved_by` | `approved_at` |
+| 4 Patch Application | Patch `status`, `file_path`, lines, `diff` | `applied_at`, `rolled_back_at` |
+| 5 Attack Replay | `after_patch` security results paired with `before_patch` | After-phase `duration_ms` (shared with stage 6) |
+| 6 Regression Testing | `after_patch` regression results (PrivilegeMap rows) paired with `before_patch` | After-phase `duration_ms` (shared) |
+| 7 Final Verdict | `verdict`, `verdict_reasons` (testing runner) | Run `completed_at` + `duration_ms` |
+
+The runner's per-phase start times exist only in its raw output, which the API does not expose, so they are not shown.
+
+Statuses: Pending, Running, Passed, Failed, Skipped (run errored, so not executed), Blocked (e.g. patch rolled back, nothing to replay), Awaiting approval, and Partially verified (only when the runner returns `PARTIALLY_VERIFIED`). Stage 7 mirrors `run.verdict`, so a FAILED verdict is never green. Attack Replay can pass while Regression Testing fails (the deny-all case), and the verdict still comes from the runner.
+
+### What real-time streaming would need (future work, backend + testing owners)
+1. The runner emits per-test events (e.g. JSON lines on stdout: `phase_started`, `test_finished`, `phase_finished`) instead of only the final JSON.
+2. The backend runs verification as a background job, returns a run id immediately (`202`), and stores events or partial results as they arrive.
+3. An event endpoint (Server-Sent Events `GET /verification/{id}/events`, or a status endpoint to poll) that exposes those events, with real timestamps.
+4. The frontend then updates `timelineModel` from events instead of the final record. The stage model already supports Running and partial results.
+
+### Gauntlet and Forensics in the UI
+- Data comes only from `run.gauntlet` and `run.forensics` (runner schema 1.1). Older runs show an honest "recorded before …" message.
+- The Lab (step 5) and the Verification page show a summary card linking to both pages. The Live Attack Timeline's Attack Replay and Regression stages also reflect Gauntlet bypasses and broken legitimate variants, as reported by the runner. Nothing recomputes the verdict.
+- Phase order is fixed in code (`baseline → before_patch → after_patch`), because PostgreSQL JSONB does not preserve object key order.
+- `useApi` now ignores responses from superseded requests, so a slow, stale response can never overwrite newer data.

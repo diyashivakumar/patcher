@@ -12,7 +12,9 @@ export default {
       colors: {
         // Named design tokens (defined in src/index.css :root).
         brand: { DEFAULT: token("--brand"), ink: token("--brand-ink") },
-        ink: token("--ink"),
+        blue: token("--blue"),
+        violet: token("--violet"),
+        ink: { DEFAULT: token("--ink"), 2: token("--ink-2") },
         surface: { DEFAULT: token("--surface"), 2: token("--surface-2") },
         line: token("--line"),
         verified: token("--verified"),

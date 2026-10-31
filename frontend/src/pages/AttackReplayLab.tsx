@@ -1,7 +1,10 @@
 import { AlertTriangle, CheckCircle2, Circle, Play, RotateCcw, ShieldCheck, Sparkles, XCircle } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { AttackTimeline } from "../components/AttackTimeline";
 import { DiffView } from "../components/CodeBlock";
+import { GauntletSummaryCard } from "../components/GauntletParts";
+import type { InFlight } from "../components/timelineModel";
 import { ExploitComparison, RunPhases, VerdictPanel } from "../components/RunView";
 import { Button, Card, cx, ErrorBox, PageHeader, PatchStatusBadge, strategyLabel, vulnLabel } from "../components/ui";
 import { useAction, useApi } from "../hooks/useApi";
@@ -47,12 +50,28 @@ export function AttackReplayLab() {
   const [approver, setApprover] = useState("");
   const [proof, setProof] = useState<VerificationRunDetail | null>(null);
   const [notice, setNotice] = useState("");
+  // Which request is actually in flight (or just failed) -- drives the timeline's Running/Failed overlay.
+  const [inFlight, setInFlight] = useState<InFlight | null>(null);
+  const [failure, setFailure] = useState<{ action: InFlight; message: string } | null>(null);
+
+  const track = (action: InFlight, fn: () => Promise<unknown>) => act.run(async () => {
+    setInFlight(action);
+    setFailure(null);
+    try {
+      await fn();
+    } catch (e) {
+      setFailure({ action, message: (e as Error).message });
+      throw e; // still surfaced by act.error / ErrorBox
+    } finally {
+      setInFlight(null);
+    }
+  });
 
   useEffect(() => {
     if (!projectId && verifiable.length) setParams({ project: verifiable[0].id, scenario }, { replace: true });
   }, [projectId, verifiable, scenario, setParams]);
 
-  const reset = () => { setBaseline(null); setFinding(null); setPatch(null); setProof(null); setNotice(""); act.clearError(); };
+  const reset = () => { setBaseline(null); setFinding(null); setPatch(null); setProof(null); setNotice(""); setFailure(null); act.clearError(); };
   // Reset the walkthrough whenever the project or vulnerability changes.
   useEffect(() => { reset(); setStrategy(scenario === "sqli" ? "parameterized_query" : "ownership_check"); }, [projectId, scenario]);
 
@@ -62,9 +81,9 @@ export function AttackReplayLab() {
     setParams({ project: p.id, scenario });
   });
 
-  const runBaseline = () => act.run(async () => setBaseline(await api.runBaseline(projectId, scenario)));
+  const runBaseline = () => track("baseline", async () => setBaseline(await api.runBaseline(projectId, scenario)));
 
-  const locateFinding = () => act.run(async () => {
+  const locateFinding = () => track("scan", async () => {
     setNotice("");
     const scan = await api.runScan(projectId);
     const found = (await api.getScanFindings(scan.id)).find((f) => f.vuln_type === scenario);
@@ -81,9 +100,9 @@ export function AttackReplayLab() {
     }
   });
 
-  const generate = () => act.run(async () => finding && setPatch(await api.generatePatch(finding.id, strategy)));
-  const apply = () => act.run(async () => patch && setPatch(await api.applyPatch(patch.id, approver.trim())));
-  const replay = () => act.run(async () => {
+  const generate = () => track("generate", async () => finding && setPatch(await api.generatePatch(finding.id, strategy)));
+  const apply = () => track("apply", async () => patch && setPatch(await api.applyPatch(patch.id, approver.trim())));
+  const replay = () => track("verify", async () => {
     if (!patch) return;
     const run = await api.runProofOfFix(patch.id);
     setProof(run);
@@ -94,6 +113,7 @@ export function AttackReplayLab() {
     await api.rollbackPatch(patch.id, "Rejected by Proof-of-Fix in Attack Replay Lab");
     setPatch(null);
     setProof(null);
+    setFailure(null);
     setStrategy(scenario === "sqli" ? "parameterized_query" : "ownership_check");
   });
 
@@ -128,7 +148,21 @@ export function AttackReplayLab() {
       {notice && <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">{notice}</div>}
 
       {projectId && (
-        <div className="space-y-4">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,460px)]">
+        <aside className="xl:order-2">
+          <div className="xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
+            <AttackTimeline
+              scenario={scenario}
+              baseline={baseline}
+              finding={finding && { ...finding, recordedAt: finding.created_at }}
+              patch={patch}
+              proof={proof}
+              running={inFlight}
+              failure={failure}
+            />
+          </div>
+        </aside>
+        <div className="space-y-4 xl:order-1">
           <Step n={1} stage="Before patch" title="Run the original exploit" done={!!baseline} active={step === 1}>
             {!baseline ? (
               <Button onClick={runBaseline} busy={act.busy}><Play className="h-4 w-4" />Run {vulnLabel(scenario)} exploit on original code</Button>
@@ -175,6 +209,7 @@ export function AttackReplayLab() {
           <Step n={5} stage="After patch" title="Replay the same attack + regression tests" done={!!proof} active={step === 5}>
             {!proof ? <Button onClick={replay} busy={act.busy}><ShieldCheck className="h-4 w-4" />Run Proof-of-Fix</Button> : (
               <div className="space-y-4">
+                <GauntletSummaryCard run={proof} />
                 <ExploitComparison run={proof} />
                 <details className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
                   <summary className="cursor-pointer text-sm text-slate-300">Full test evidence (requests and responses for both phases)</summary>
@@ -200,6 +235,7 @@ export function AttackReplayLab() {
               </div>
             )}
           </Step>
+        </div>
         </div>
       )}
     </>

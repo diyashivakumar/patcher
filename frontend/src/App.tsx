@@ -5,6 +5,9 @@ import { AttackReplayLab } from "./pages/AttackReplayLab";
 import { Dashboard } from "./pages/Dashboard";
 import { FindingDetail } from "./pages/FindingDetail";
 import { Findings } from "./pages/Findings";
+import { Forensics } from "./pages/Forensics";
+import { Gauntlet } from "./pages/Gauntlet";
+import { KillChain } from "./pages/KillChain";
 import { PatchReview } from "./pages/PatchReview";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import { Projects } from "./pages/Projects";
@@ -26,6 +29,9 @@ export default function App() {
         <Route path="findings/:findingId" element={<FindingDetail />} />
         <Route path="patches/:patchId" element={<PatchReview />} />
         <Route path="replay" element={<AttackReplayLab />} />
+        <Route path="gauntlet" element={<Gauntlet />} />
+        <Route path="forensics" element={<Forensics />} />
+        <Route path="kill-chain" element={<KillChain />} />
         <Route path="verification/:runId" element={<VerificationResult />} />
         <Route path="reports" element={<Reports />} />
         <Route path="*" element={<Empty>Page not found. <Link className="text-sky-400" to="/">Go to dashboard</Link></Empty>} />

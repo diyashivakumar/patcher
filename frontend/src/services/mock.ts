@@ -11,6 +11,31 @@ const DEFAULT_STRATEGY: Record<VulnType, string> = { sqli: "parameterized_query"
 const patches = new Map<string, { key: string; patch: Patch }>();
 const runs = new Map<string, VerificationRunDetail>();
 
+// A live verification run (with gauntlet + forensics) per strategy, so a mock Proof-of-Fix
+// produces the same rich evidence as the backend.
+const RICH_BY_KEY: Record<string, string> = {
+  "sqli:parameterized_query": "sqli_verified",
+  "sqli:naive_blocklist_demo": "sqli_failed",
+  "idor:ownership_check": "idor_verified",
+  "idor:deny_all_demo": "idor_failed",
+};
+
+// Seed the app "mid-investigation": recent rich runs + their patches are present on first load,
+// so Dashboard, Reports, Variant Gauntlet and Exposure Forensics render populated with no clicks.
+(function seed() {
+  const rich: Record<string, VerificationRunDetail> = data.richRuns ?? {};
+  const labels = ["sqli_verified", "idor_verified", "sqli_failed", "idor_failed"];
+  labels.forEach((label, i) => {
+    const run = rich[label];
+    if (!run) return;
+    run.created_at = new Date(Date.now() - (6 + i * 37) * 60_000).toISOString();
+    runs.set(run.id, run);
+  });
+  for (const [id, patch] of Object.entries((data.richPatches ?? {}) as Record<string, Patch>)) {
+    patches.set(id, { key: `${patch.vuln_type}:${patch.strategy}`, patch });
+  }
+})();
+
 const wait = <T>(value: T, ms = 350): Promise<T> =>
   new Promise((resolve) => setTimeout(() => resolve(structuredClone(value)), ms));
 
@@ -83,7 +108,8 @@ export const mockApi: Api = {
   runProofOfFix: (patchId) => {
     const entry = patchEntry(patchId);
     if (entry.patch.status === "PROPOSED") return Promise.reject(new MockError("Apply the patch first"));
-    const run = { ...data.runs[entry.key], id: crypto.randomUUID(), patch_id: patchId, created_at: new Date().toISOString() };
+    const template = data.richRuns?.[RICH_BY_KEY[entry.key]] ?? data.runs[entry.key];
+    const run = { ...template, id: crypto.randomUUID(), patch_id: patchId, created_at: new Date().toISOString() };
     runs.set(run.id, run);
     entry.patch = {
       ...entry.patch,
@@ -113,6 +139,9 @@ export const mockApi: Api = {
         created_at: r.created_at,
       })),
     ),
+  listRegressionCases: (scenario) =>
+    wait((data.regressionCases ?? []).filter((c: { scenario: string }) => !scenario || c.scenario === scenario)),
+  chainImpact: () => wait(data.chainImpact, 900),
   getReport: () => Promise.reject(new MockError("Report details need the real backend")),
   downloadReport: () => Promise.reject(new MockError("Report downloads need the real backend")),
   reportUrl: () => null,

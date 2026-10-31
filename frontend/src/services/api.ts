@@ -11,6 +11,8 @@ import type {
   Patch,
   Project,
   ProjectDetail,
+  ChainImpactResult,
+  RegressionCase,
   Report,
   ReportListItem,
   ScanSummary,
@@ -113,10 +115,13 @@ const realApi = {
     return request<VerificationRun[]>(`/verification${qs.size ? `?${qs}` : ""}`);
   },
   getRun: (id: string) => request<VerificationRunDetail>(`/verification/${id}`),
+  listRegressionCases: (scenario?: VulnType) =>
+    request<RegressionCase[]>(`/regression-cases${scenario ? `?scenario=${scenario}` : ""}`),
   listReports: () => request<ReportListItem[]>("/reports"),
   getReport: (id: string) => request<Report>(`/reports/${id}`),
   downloadReport: (id: string, format: "json" | "html"): Promise<void> => downloadReport(id, format),
   reportUrl: (id: string, format: "json" | "html"): string | null => `${API_BASE}/reports/${id}?format=${format}`,
+  chainImpact: (projectId?: string) => post<ChainImpactResult>("/challenge/chain-impact", projectId ? { project_id: projectId } : {}),
 };
 
 export type Api = typeof realApi;

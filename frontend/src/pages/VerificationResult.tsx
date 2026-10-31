@@ -1,6 +1,8 @@
 import { Download, FileText } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
+import { AttackTimeline } from "../components/AttackTimeline";
 import { DiffView } from "../components/CodeBlock";
+import { GauntletSummaryCard } from "../components/GauntletParts";
 import { ExploitComparison, RunPhases, VerdictPanel } from "../components/RunView";
 import { Button, Card, ErrorBox, fmtDate, Loading, PageHeader, PatchStatusBadge, SeverityBadge, strategyLabel, vulnLabel } from "../components/ui";
 import { useAction, useApi } from "../hooks/useApi";
@@ -13,6 +15,9 @@ export function VerificationResult() {
   const download = useAction();
   const r = run.data;
   const rep = report.data;
+  // Full patch record gives real approval/apply/rollback timestamps; the report's patch is the fallback.
+  const patchId = r?.patch_id ?? null;
+  const patch = useApi(() => (patchId ? api.getPatch(patchId) : Promise.resolve(null)), [patchId]);
 
   if (run.loading && !r) return <Loading />;
   if (!r) return <ErrorBox error={run.error} onRetry={run.reload} />;
@@ -34,7 +39,15 @@ export function VerificationResult() {
       />
       <ErrorBox error={download.error} />
       <div className="space-y-4">
+        <AttackTimeline
+          scenario={r.scenario}
+          baseline={r.kind === "baseline" ? r : null}
+          proof={r.kind === "proof_of_fix" ? r : null}
+          patch={patch.data ?? rep?.patch ?? null}
+          finding={rep?.finding ? { ...rep.finding, recordedAt: rep.scan?.started_at ?? null } : null}
+        />
         <VerdictPanel run={r} />
+        <GauntletSummaryCard run={r} />
 
         {rep?.finding && (
           <div className="grid gap-4 lg:grid-cols-2">

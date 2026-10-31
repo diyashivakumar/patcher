@@ -10,10 +10,10 @@ export function Card({ title, actions, children, className }: {
   title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string;
 }) {
   return (
-    <section className={cx("rounded-xl border border-line bg-surface/70 shadow-card backdrop-blur-sm", className)}>
+    <section className={cx("glass glass-hover rise-in rounded-2xl", className)}>
       {(title || actions) && (
-        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3">
-          <h2 className="text-sm font-semibold tracking-tightish text-slate-200">{title}</h2>
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line/15 px-5 py-3.5">
+          <h2 className="text-sm font-semibold tracking-tightish text-slate-100">{title}</h2>
           {actions}
         </header>
       )}
@@ -240,15 +240,15 @@ export function Stat({ label, value, hint, accent, trend }: {
   const numeric = typeof value === "number" ? value : null;
   const counted = useCountUp(numeric ?? 0);
   return (
-    <div className="group rounded-xl border border-line bg-surface/70 p-4 shadow-card transition-colors hover:border-slate-700">
+    <div className="group glass glass-hover rise-in rounded-2xl p-4">
       <div className="flex items-start justify-between gap-2">
-        <div className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</div>
-        {trend && trend.length > 1 && <Sparkline data={trend} className="opacity-60 transition-opacity group-hover:opacity-100" />}
+        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{label}</div>
+        {trend && trend.length > 1 && <Sparkline data={trend} className="opacity-70 transition-opacity group-hover:opacity-100" />}
       </div>
-      <div className={cx("mt-2 text-3xl font-semibold tabular-nums tracking-tightish", accent ?? "text-white")}>
+      <div className={cx("mt-2.5 text-[2rem] font-semibold leading-none tabular-nums tracking-tightish", accent ?? "text-white")}>
         {numeric !== null ? counted : value}
       </div>
-      {hint && <div className="mt-1 text-xs text-slate-500">{hint}</div>}
+      {hint && <div className="mt-1.5 text-xs text-slate-500">{hint}</div>}
     </div>
   );
 }
@@ -294,4 +294,5 @@ export const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleStri
 export const vulnLabel = (t: string) => (t === "sqli" ? "SQL Injection" : t === "idor" ? "Broken Access Control (IDOR)" : t);
 export const strategyLabel = (s: string) =>
   ({ parameterized_query: "Parameterised query", ownership_check: "Server-side ownership check",
-     deny_all_demo: "Deny-all (deliberately over-restrictive demo)" } as Record<string, string>)[s] ?? s;
+     deny_all_demo: "Deny-all (deliberately over-restrictive demo)",
+     naive_blocklist_demo: "Naive blocklist (deliberately bypassable demo)" } as Record<string, string>)[s] ?? s;
